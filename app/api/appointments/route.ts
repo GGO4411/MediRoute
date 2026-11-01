@@ -24,8 +24,8 @@ export async function POST(req:NextRequest){
 export async function PATCH(req:NextRequest){
  try{const user=await getSession(req);if(!user)return NextResponse.json({error:'Authentication required.'},{status:401});
   const p=z.object({appointmentId:z.number().int().positive(),status:z.enum(['CONFIRMED','COMPLETED','CANCELLED','NO_SHOW'])}).safeParse(await req.json());if(!p.success)return NextResponse.json({error:'Invalid appointment update.'},{status:400});
-  const [rows]=await db().execute<DBRow[]>('SELECT appointment_id,patient_id,doctor_id FROM appointments WHERE appointment_id=?',[p.data.appointmentId]);const a=rows[0];if(!a)return NextResponse.json({error:'Appointment not found.'},{status:404});
-  if(user.role==='PATIENT'){if(Number(a.patient_id)!==user.userId||p.data.status!=='CANCELLED')return NextResponse.json({error:'Patients may only cancel their own appointments.'},{status:403});}
+  const [rows]=await db().execute<DBRow[]>('SELECT appointment_id,patient_id,doctor_id,status FROM appointments WHERE appointment_id=?',[p.data.appointmentId]);const a=rows[0];if(!a)return NextResponse.json({error:'Appointment not found.'},{status:404});
+  if(user.role==='PATIENT'){if(Number(a.patient_id)!==user.userId||p.data.status!=='CANCELLED'||!['BOOKED','CONFIRMED'].includes(a.status))return NextResponse.json({error:'Patients may only cancel their own appointments.'},{status:403});}
   else if(user.role==='DOCTOR'){const [d]=await db().execute<DBRow[]>('SELECT doctor_id FROM doctors WHERE user_id=?',[user.userId]);if(!d[0]||Number(d[0].doctor_id)!==Number(a.doctor_id))return NextResponse.json({error:'This appointment is not assigned to you.'},{status:403});}
   else if(user.role!=='ADMIN')return NextResponse.json({error:'Forbidden.'},{status:403});
   await db().execute('UPDATE appointments SET status=? WHERE appointment_id=?',[p.data.status,p.data.appointmentId]);return NextResponse.json({message:'Appointment status updated.'});
