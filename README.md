@@ -56,7 +56,7 @@ MediRoute is a DBMS Level 3 project prototype. Patients describe symptoms in nat
    docker compose up -d
    ```
 
-   MySQL runs `db/schema.sql` automatically when its data volume is first initialized. If a MySQL volume already exists, apply the schema manually or reset the local demo volume before proceeding.
+   MySQL runs `db/schema.sql` automatically when its data volume is first initialized. Wait until `docker compose ps` shows MySQL as healthy before seeding. If a MySQL volume already exists and you need to reapply the schema, run `npm run db:init` (the initializer understands the `DELIMITER` blocks used for triggers and the stored procedure).
 
 4. Install packages and populate demo records:
 
@@ -66,7 +66,7 @@ MediRoute is a DBMS Level 3 project prototype. Patients describe symptoms in nat
    npm run vectors:seed
    ```
 
-   The embedding model is downloaded the first time vector seeding or symptom search runs, so an internet connection is needed for the initial model download.
+   The embedding model is downloaded the first time vector seeding or symptom search runs, so an internet connection is needed for the initial model download. Appointment `DATETIME` values are stored in UTC and rendered in each browser's local timezone.
 
 5. Start Next.js:
 
@@ -93,10 +93,12 @@ Public registration creates PATIENT accounts only. Doctor and administrator acco
 ## Database design and DBMS concepts
 
 - `db/schema.sql`: users, specialties, doctors, appointment_slots, triage_sessions, appointments, prescriptions and appointment_audit.
+- `db/migrations.sql`: optional one-time `ALTER TABLE` example adding `preferred_language`; do not run it more than once.
+- `db/ddl_examples.sql`: commented `ALTER`/`DROP` statements for demonstrating schema changes and rollback in a disposable database.
 - Primary keys, foreign keys, unique constraints, CHECK constraints, and secondary indexes enforce consistency and support reads.
 - `v_doctor_directory` and `v_appointment_details` encapsulate common joins.
 - `sp_calculate_urgency` is a stored procedure illustrating database-side rule scoring.
-- Triggers verify slot status/doctor ownership, mark slots booked after insertion, release slots on cancellation, and write status-change audit rows.
+- Triggers verify slot status/doctor ownership and triage ownership, reject emergency-triage bookings, mark slots booked after insertion, release slots on cancellation, prevent reopening closed bookings, and write status-change audit rows.
 - Appointment booking uses an InnoDB transaction and `SELECT ... FOR UPDATE` to serialize concurrent attempts for the same slot. The insert trigger acts as a second database-level check.
 - Qdrant stores embedding vectors and payload metadata (`condition`, `description`, `specialty`, `keywords`, `source`). The payload index on `specialty` supports filtering/metadata operations.
 
@@ -116,7 +118,7 @@ HAVING COUNT(*) >= 1;
 SELECT doctor_id FROM doctors d
 WHERE EXISTS (
   SELECT 1 FROM appointment_slots s
-  WHERE s.doctor_id=d.doctor_id AND s.status='AVAILABLE' AND s.starts_at>NOW()
+  WHERE s.doctor_id=d.doctor_id AND s.status='AVAILABLE' AND s.starts_at>UTC_TIMESTAMP()
 );
 
 -- Trigger audit history
@@ -140,7 +142,7 @@ SELECT @score AS urgency_score, @level AS urgency_level;
 | GET | `/api/slots?mine=1` | Doctor/admin availability management list |
 | POST | `/api/slots` | Doctor creates a future 30–180 minute availability slot |
 | DELETE | `/api/slots?slotId=ID` | Doctor/admin removes an unused future slot |
-| POST | `/api/triage` | Embed symptoms, search Qdrant and save triage |
+| POST | `/api/triage` | Run MySQL urgency scoring, then embed/search/save triage unless an emergency flag pauses routing |
 | GET/POST/PATCH | `/api/appointments` | List, book and update authorized appointments |
 | GET/POST | `/api/records` | List and create prescriptions |
 | POST | `/api/admin/corpus` | Admin-only corpus upsert |
@@ -151,7 +153,10 @@ Run the deterministic urgency-rule smoke test:
 
 ```bash
 npm run test:triage
+npm run test:db
 ```
+
+`test:db` requires the MySQL schema and seed data (`npm run db:init` and `npm run db:seed`). It checks the stored procedure, emergency booking guard, slot booking/duplicate prevention, cancellation, slot reuse and audit trigger. The GitHub Actions workflow runs these checks against a disposable MySQL 8.4 service.
 
 Manual DB/application checks:
 1. Register a patient; verify the DB contains a bcrypt hash, never the original password.
