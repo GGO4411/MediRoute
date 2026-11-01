@@ -95,7 +95,7 @@ BEGIN
    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Emergency triage sessions cannot be booked online';
   END IF;
  END IF;
-END$
+END$$
 
 CREATE TRIGGER IF NOT EXISTS trg_appointment_after_insert
 AFTER INSERT ON appointments FOR EACH ROW
@@ -116,7 +116,7 @@ BEGIN
  IF OLD.status='CONFIRMED' AND NEW.status NOT IN ('CONFIRMED','COMPLETED','CANCELLED','NO_SHOW') THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Invalid transition from CONFIRMED';
  END IF;
-END$
+END$$
 
 CREATE TRIGGER IF NOT EXISTS trg_appointment_after_update
 AFTER UPDATE ON appointments FOR EACH ROW
