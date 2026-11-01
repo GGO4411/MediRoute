@@ -79,7 +79,7 @@ BEFORE INSERT ON appointments FOR EACH ROW
 BEGIN
  DECLARE slot_state VARCHAR(20); DECLARE slot_doctor BIGINT UNSIGNED;
  SET slot_state=NULL;
- SELECT status,doctor_id INTO slot_state,slot_doctor FROM appointment_slots WHERE slot_id=NEW.slot_id;
+ SELECT status,doctor_id INTO slot_state,slot_doctor FROM appointment_slots WHERE slot_id=NEW.slot_id FOR UPDATE;
  IF slot_state IS NULL OR slot_state<>'AVAILABLE' OR slot_doctor<>NEW.doctor_id THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Selected slot is not available for this doctor';
  END IF;
