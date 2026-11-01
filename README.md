@@ -21,7 +21,8 @@ MediRoute is a DBMS Level 3 project prototype. Patients describe symptoms in nat
 - Rule-based urgency flagging for selected red-flag phrases (not clinical-grade triage)
 - Specialist directory and specialty/name filtering
 - Available appointment-slot search and transaction-safe booking
-- Appointment status management, with an audit trigger and slot release on cancellation
+- Appointment status management, with an audit trigger, slot release on cancellation and closed-state transition guards
+- Doctor availability creation/removal with overlap checks and safe deletion of unbooked future slots
 - Patient appointment and prescription history
 - Doctor appointment queue and prescription creation (ownership verified in API)
 - Admin interface to embed and add curated routing concepts to Qdrant
@@ -135,7 +136,10 @@ SELECT @score AS urgency_score, @level AS urgency_level;
 | POST | `/api/auth/logout` | Clear session cookie |
 | GET | `/api/auth/me` | Current session |
 | GET | `/api/doctors` | Active specialist directory |
-| GET | `/api/slots?doctorId=ID` | Available future slots |
+| GET | `/api/slots?doctorId=ID` | Public available future slots for one doctor |
+| GET | `/api/slots?mine=1` | Doctor/admin availability management list |
+| POST | `/api/slots` | Doctor creates a future 30–180 minute availability slot |
+| DELETE | `/api/slots?slotId=ID` | Doctor/admin removes an unused future slot |
 | POST | `/api/triage` | Embed symptoms, search Qdrant and save triage |
 | GET/POST/PATCH | `/api/appointments` | List, book and update authorized appointments |
 | GET/POST | `/api/records` | List and create prescriptions |
@@ -181,7 +185,7 @@ npm run vectors:seed
 
 ## Prototype boundaries
 
-- The warning rules are simple text patterns and are not validated for clinical use.
+- The warning rules are simple text patterns and are not validated for clinical use. A potential emergency result deliberately skips Qdrant specialist matching and online booking; this is a protective demonstration behaviour, not a validated triage guarantee.
 - The seed vector corpus is small, synthetic and for demonstrating semantic retrieval only; it is not an authoritative medical knowledge base.
 - No payments, notifications, interoperability with hospital systems, clinical verification, consent workflow or production-grade deployment controls are included.
 - The DBMS report, ER diagram, screenshots and other formal documentation deliverables are intentionally not included in this implementation pass.
