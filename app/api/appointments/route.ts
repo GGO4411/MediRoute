@@ -23,7 +23,7 @@ export async function POST(req:NextRequest){
   await conn.beginTransaction();
   const [slots]=await conn.execute<DBRow[]>(`SELECT s.slot_id,s.doctor_id,s.status,s.starts_at,d.is_accepting_patients
     FROM appointment_slots s JOIN doctors d ON d.doctor_id=s.doctor_id
-    WHERE s.slot_id=? AND s.starts_at>NOW() FOR UPDATE`,[p.data.slotId]);
+    WHERE s.slot_id=? AND s.starts_at>UTC_TIMESTAMP() FOR UPDATE`,[p.data.slotId]);
   const slot=slots[0];
   if(!slot||slot.status!=='AVAILABLE'||!slot.is_accepting_patients){await conn.rollback();return NextResponse.json({error:'This slot is no longer available. Choose another.'},{status:409});}
   let urgency='ROUTINE';
