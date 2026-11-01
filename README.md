@@ -154,9 +154,10 @@ Run the deterministic urgency-rule smoke test:
 ```bash
 npm run test:triage
 npm run test:db
+npm run test:vectors
 ```
 
-`test:db` requires the MySQL schema and seed data (`npm run db:init` and `npm run db:seed`). It checks the stored procedure, emergency booking guard, slot booking/duplicate prevention, cancellation, slot reuse and audit trigger. The GitHub Actions workflow runs these checks against a disposable MySQL 8.4 service.
+`test:db` requires the MySQL schema and seed data (`npm run db:init` and `npm run db:seed`). It checks the stored procedure, emergency booking guard, slot booking/duplicate prevention, cancellation, slot reuse and audit trigger. The GitHub Actions workflow runs these checks against disposable MySQL 8.4 and Qdrant services. `test:vectors` requires Qdrant to be running and the sample vector corpus to have been seeded with `npm run vectors:seed`.
 
 Manual DB/application checks:
 1. Register a patient; verify the DB contains a bcrypt hash, never the original password.
@@ -176,6 +177,7 @@ Manual DB/application checks:
 - `db/`: schema and optional migration examples
 - `scripts/`: relational and vector seed scripts
 - `tests/`: simple urgency rule smoke test
+- `scripts/test-db.ts` and `scripts/test-vectors.ts`: MySQL and Qdrant integration checks
 
 ## Reset local demo data
 
