@@ -28,7 +28,7 @@ export async function POST(req:NextRequest){
   const specialties=Array.from(new Set(matches.map(m=>String(m.specialty||'')).filter(Boolean)));let doctors:any[]=[];
   if(urgency!=='EMERGENCY'&&specialties.length){
    const marks=specialties.map(()=>'?').join(',');
-   const [rows]=await db().execute<DBRow[]>(`SELECT * FROM v_doctor_directory WHERE is_accepting_patients=1 AND specialty IN (${marks}) ORDER BY years_experience DESC`,specialties);
+   const [rows]=await db().execute<DBRow[]>(`SELECT doctor_id,doctor_name,specialty,qualification,years_experience,consultation_fee,bio,is_accepting_patients FROM v_doctor_directory WHERE is_accepting_patients=1 AND specialty IN (${marks}) ORDER BY years_experience DESC`,specialties);
    doctors=rows;
   }
   return NextResponse.json({triageId,urgency,urgencyScore:score,flags,emergencyMessage:urgency==='EMERGENCY'?EMERGENCY_MESSAGE:null,matches,doctors,vectorAvailable,routingSkipped:urgency==='EMERGENCY',disclaimer:'Administrative routing suggestions only. This is not a diagnosis and does not replace evaluation by a qualified healthcare professional.'});
