@@ -1,0 +1,9 @@
+'use client';
+import Link from 'next/link';
+import { useState,type FormEvent } from 'react';
+export default function Register(){
+ const [form,setForm]=useState({name:'',email:'',phone:'',password:''}),[error,setError]=useState(''),[busy,setBusy]=useState(false);
+ function change(k:string,v:string){setForm(f=>({...f,[k]:v}));}
+ async function submit(e:FormEvent){e.preventDefault();setBusy(true);setError('');try{const r=await fetch('/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(form)});const d=await r.json();if(!r.ok)throw new Error(d.error);location.href='/dashboard';}catch(e:any){setError(e.message||'Registration failed.');}finally{setBusy(false);}}
+ return <main className="auth-wrap"><section className="auth-card"><div className="pill">PATIENT REGISTRATION</div><h1 style={{fontSize:28,margin:'13px 0 5px'}}>Create your account</h1><p className="muted">Create a patient account to start using MediRoute.</p><form onSubmit={submit}><label>Full name</label><input required minLength={2} maxLength={120} value={form.name} onChange={e=>change('name',e.target.value)} placeholder="Your name"/><label>Email address</label><input type="email" required value={form.email} onChange={e=>change('email',e.target.value)} placeholder="you@example.com"/><label>Phone (optional)</label><input value={form.phone} onChange={e=>change('phone',e.target.value)} placeholder="Contact number"/><label>Password</label><input type="password" required minLength={8} value={form.password} onChange={e=>change('password',e.target.value)} placeholder="At least 8 characters"/>{error&&<div className="alert danger">{error}</div>}<button className="btn" disabled={busy} style={{width:'100%',marginTop:20}}>{busy?'Creating…':'Create account'}</button></form><p className="muted" style={{marginTop:18}}>Already registered? <Link href="/login" style={{color:'#087e8b',fontWeight:700}}>Sign in</Link></p></section></main>;
+}
