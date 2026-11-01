@@ -78,12 +78,24 @@ CREATE TRIGGER IF NOT EXISTS trg_appointment_before_insert
 BEFORE INSERT ON appointments FOR EACH ROW
 BEGIN
  DECLARE slot_state VARCHAR(20); DECLARE slot_doctor BIGINT UNSIGNED;
+ DECLARE triage_patient BIGINT UNSIGNED; DECLARE triage_urgency VARCHAR(20);
  SET slot_state=NULL;
  SELECT status,doctor_id INTO slot_state,slot_doctor FROM appointment_slots WHERE slot_id=NEW.slot_id FOR UPDATE;
  IF slot_state IS NULL OR slot_state<>'AVAILABLE' OR slot_doctor<>NEW.doctor_id THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Selected slot is not available for this doctor';
  END IF;
-END$$
+ IF NEW.triage_id IS NOT NULL THEN
+  SET triage_patient=NULL; SET triage_urgency=NULL;
+  SELECT patient_id,urgency INTO triage_patient,triage_urgency
+   FROM triage_sessions WHERE triage_id=NEW.triage_id FOR UPDATE;
+  IF triage_patient IS NULL OR triage_patient<>NEW.patient_id THEN
+   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Triage session does not belong to this patient';
+  END IF;
+  IF triage_urgency='EMERGENCY' THEN
+   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Emergency triage sessions cannot be booked online';
+  END IF;
+ END IF;
+END$
 
 CREATE TRIGGER IF NOT EXISTS trg_appointment_after_insert
 AFTER INSERT ON appointments FOR EACH ROW
@@ -97,6 +109,12 @@ BEFORE UPDATE ON appointments FOR EACH ROW
 BEGIN
  IF OLD.status IN ('CANCELLED','COMPLETED','NO_SHOW') AND NEW.status<>OLD.status THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Closed appointments cannot be reopened';
+ END IF;
+ IF OLD.status='BOOKED' AND NEW.status NOT IN ('BOOKED','CONFIRMED','CANCELLED','NO_SHOW') THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Invalid transition from BOOKED';
+ END IF;
+ IF OLD.status='CONFIRMED' AND NEW.status NOT IN ('CONFIRMED','COMPLETED','CANCELLED','NO_SHOW') THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Invalid transition from CONFIRMED';
  END IF;
 END$
 
