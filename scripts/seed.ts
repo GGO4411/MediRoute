@@ -15,9 +15,10 @@ async function main(){
    const u=ur[0],s=sr[0];if(!u||!s)continue;
    await conn.execute('INSERT IGNORE INTO doctors(user_id,specialty_id,qualification,years_experience,consultation_fee,bio) VALUES(?,?,?,?,?,?)',[u.user_id,s.specialty_id,qualification,years,fee,'Sample profile for demonstrating specialist routing.']);
    const [dr]:any=await conn.query('SELECT doctor_id FROM doctors WHERE user_id=?',[u.user_id]);const d=dr[0];if(!d)continue;
-   for(let day=1;day<=7;day++)for(const hour of [9,11,14,16]){
-    const start=new Date();start.setDate(start.getDate()+day);start.setHours(hour,0,0,0);const end=new Date(start.getTime()+30*60000);
-    const fmt=(x:Date)=>x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0')+' '+String(x.getHours()).padStart(2,'0')+':'+String(x.getMinutes()).padStart(2,'0')+':00';
+   for(let day=1;day<=7;day++)for(const hourUtc of [4,6,9,11]){
+    // Store DATETIME values as UTC; the browser renders them in the viewer's local timezone.
+    const start=new Date();start.setUTCDate(start.getUTCDate()+day);start.setUTCHours(hourUtc,0,0,0);const end=new Date(start.getTime()+30*60000);
+    const fmt=(x:Date)=>x.getUTCFullYear()+'-'+String(x.getUTCMonth()+1).padStart(2,'0')+'-'+String(x.getUTCDate()).padStart(2,'0')+' '+String(x.getUTCHours()).padStart(2,'0')+':'+String(x.getUTCMinutes()).padStart(2,'0')+':00';
     await conn.execute('INSERT IGNORE INTO appointment_slots(doctor_id,starts_at,ends_at) VALUES(?,?,?)',[d.doctor_id,fmt(start),fmt(end)]);
    }
   }
