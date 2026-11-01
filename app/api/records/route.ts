@@ -16,7 +16,7 @@ export async function POST(req:NextRequest){
  try{const user=await getSession(req);if(!user)return NextResponse.json({error:'Authentication required.'},{status:401});if(!['DOCTOR','ADMIN'].includes(user.role))return NextResponse.json({error:'Only a doctor can create a prescription.'},{status:403});
   const p=schema.safeParse(await req.json());if(!p.success)return NextResponse.json({error:'Invalid prescription details.'},{status:400});
   const [rows]=await db().execute<DBRow[]>('SELECT appointment_id,patient_id,doctor_id,status FROM appointments WHERE appointment_id=?',[p.data.appointmentId]);const a=rows[0];
-  if(!a||Number(a.patient_id)!==p.data.patientId||!['COMPLETED','CONFIRMED','BOOKED'].includes(a.status))return NextResponse.json({error:'Appointment and patient details do not match.'},{status:400});
+  if(!a||Number(a.patient_id)!==p.data.patientId||a.status!=='COMPLETED')return NextResponse.json({error:'Appointment and patient details do not match.'},{status:400});
   if(user.role==='DOCTOR'){const [d]=await db().execute<DBRow[]>('SELECT doctor_id FROM doctors WHERE user_id=?',[user.userId]);if(!d[0]||Number(d[0].doctor_id)!==Number(a.doctor_id))return NextResponse.json({error:'You cannot prescribe for another doctor’s appointment.'},{status:403});}
   const [r]=await db().execute<any>('INSERT INTO prescriptions(appointment_id,doctor_id,patient_id,diagnosis_notes,medication_name,dosage,instructions) VALUES(?,?,?,?,?,?,?)',[p.data.appointmentId,a.doctor_id,p.data.patientId,p.data.diagnosisNotes||null,p.data.medicationName,p.data.dosage||null,p.data.instructions||null]);
   return NextResponse.json({prescriptionId:Number(r.insertId)},{status:201});
