@@ -2,6 +2,16 @@ import { QdrantClient } from '@qdrant/js-client-rest';
 import { createHash } from 'node:crypto';
 import { embed } from './embeddings';
 export const COLLECTION=process.env.QDRANT_COLLECTION||'medical_routing_v1';
+export type CorpusMatch={
+ id:string|number;
+ score:number;
+ condition?:string;
+ description?:string;
+ specialty?:string;
+ keywords?:string[];
+ source?:string;
+ [key:string]:unknown;
+};
 export function pointId(key:string):string{
  const h=createHash('sha256').update(key).digest('hex').slice(0,32).split('');
  h[12]='5';h[16]=((parseInt(h[16],16)&3)|8).toString(16);
@@ -16,8 +26,8 @@ export async function ensureCollection(){
   await q.createPayloadIndex(COLLECTION,{field_name:'specialty',field_schema:'keyword'});
  }
 }
-export async function searchCorpus(text:string,limit=5){
+export async function searchCorpus(text:string,limit=5):Promise<CorpusMatch[]>{
  const vector=await embed(text);
  const result=await qdrant().search(COLLECTION,{vector,limit,with_payload:true,score_threshold:.20});
- return result.map(p=>({id:p.id,score:p.score,...(p.payload as Record<string,unknown>)}));
+ return result.map(p=>({id:p.id,score:p.score,...(p.payload as Record<string,unknown>)})) as CorpusMatch[];
 }
