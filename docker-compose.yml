@@ -3,6 +3,7 @@ services:
     image: mysql:8.4
     container_name: mediroute-mysql
     restart: unless-stopped
+    command: ["--default-time-zone=+00:00"]
     environment:
       MYSQL_ROOT_PASSWORD: local-root-change-me
       MYSQL_DATABASE: mediroute
