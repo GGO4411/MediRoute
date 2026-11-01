@@ -1,0 +1,9 @@
+'use client';
+import { useEffect,useMemo,useState } from 'react';
+export default function Doctors(){
+ const [doctors,setDoctors]=useState<any[]>([]),[search,setSearch]=useState(''),[specialty,setSpecialty]=useState('');
+ useEffect(()=>{fetch('/api/doctors').then(r=>r.json()).then(d=>setDoctors(d.doctors||[]));},[]);
+ const specialties=useMemo(()=>Array.from(new Set(doctors.map(d=>d.specialty))),[doctors]);
+ const filtered=doctors.filter(d=>(!specialty||d.specialty===specialty)&&(`${d.doctor_name} ${d.specialty} ${d.qualification}`.toLowerCase().includes(search.toLowerCase())));
+ return <main className="container"><div className="pill">SPECIALIST DIRECTORY</div><h1 style={{fontSize:34,margin:'10px 0 5px'}}>Find a clinician</h1><p className="muted">Browse clinicians and explore their listed specialties.</p><section className="card" style={{marginTop:22}}><div className="grid" style={{marginTop:0}}><div className="span-8"><label>Search</label><input placeholder="Name, specialty or qualification" value={search} onChange={e=>setSearch(e.target.value)}/></div><div className="span-4"><label>Specialty</label><select value={specialty} onChange={e=>setSpecialty(e.target.value)}><option value="">All specialties</option>{specialties.map((s:any)=><option key={s}>{s}</option>)}</select></div></div><div className="grid">{filtered.map(d=><div className="card span-4" key={d.doctor_id}><div className="pill">{d.specialty}</div><h2 style={{marginTop:12}}>{d.doctor_name}</h2><p className="muted">{d.qualification}</p><p className="muted">{d.years_experience} years' experience · ₹{d.consultation_fee}</p><p className="muted">{d.bio}</p></div>)}{!filtered.length&&<p className="muted" style={{padding:12}}>No clinicians found. Run the database seed script to add sample doctors.</p>}</div></section></main>;
+}
