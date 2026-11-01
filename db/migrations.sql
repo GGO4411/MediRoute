@@ -1,0 +1,4 @@
+-- Optional schema-change examples for the DBMS demonstration. Run individually only when needed.
+-- ALTER TABLE users ADD COLUMN date_of_birth DATE NULL;
+-- ALTER TABLE users DROP COLUMN date_of_birth;
+-- DROP VIEW IF EXISTS v_appointment_details;
