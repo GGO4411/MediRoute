@@ -7,11 +7,38 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: test-root-password
+          MYSQL_DATABASE: mediroute
+          MYSQL_USER: mediroute
+          MYSQL_PASSWORD: test-db-password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -ptest-root-password"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+    env:
+      MYSQL_HOST: 127.0.0.1
+      MYSQL_PORT: 3306
+      MYSQL_ROOT_PASSWORD: test-root-password
+      MYSQL_USER: mediroute
+      MYSQL_PASSWORD: test-db-password
+      MYSQL_DATABASE: mediroute
+      AUTH_SECRET: github-actions-test-secret-at-least-32-characters
+      QDRANT_URL: http://127.0.0.1:6333
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - run: npm install --no-audit --no-fund
+      - run: npm run db:init
+      - run: npm run db:seed
+      - run: npm run test:db
       - run: npm run test:triage
       - run: npm run build
