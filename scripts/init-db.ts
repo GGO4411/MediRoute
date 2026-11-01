@@ -5,10 +5,10 @@ import mysql from 'mysql2/promise';
 
 function splitSqlStatements(source:string):string[]{
  let delimiter=';',buffer='',statements:string[]=[];
- for(const line of source.split(/\\r?\\n/)){
-  const directive=line.trim().match(/^DELIMITER\\s+(\\S+)$/i);
+ for(const line of source.split(/\r?\n/)){
+  const directive=line.trim().match(/^DELIMITER\s+(\S+)$/i);
   if(directive){delimiter=directive[1];continue;}
-  buffer+=line+'\\n';
+  buffer+=line+'\n';
   let index:number;
   while((index=buffer.indexOf(delimiter))>=0){
    const statement=buffer.slice(0,index).trim();
