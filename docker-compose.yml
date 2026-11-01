@@ -11,7 +11,7 @@ services:
     ports: ["3306:3306"]
     volumes: ["mysql_data:/var/lib/mysql", "./db/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro"]
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-pchange-me"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "mediroute", "-pchange-me"]
       interval: 5s
       timeout: 5s
       retries: 20
