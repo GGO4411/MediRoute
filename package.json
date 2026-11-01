@@ -10,7 +10,8 @@
     "db:seed": "tsx scripts/seed.ts",
     "vectors:seed": "tsx scripts/seed-vectors.ts",
     "test:triage": "tsx tests/triage.test.ts",
-    "test:db": "tsx scripts/test-db.ts"
+    "test:db": "tsx scripts/test-db.ts",
+    "test:vectors": "tsx scripts/test-vectors.ts"
   },
   "dependencies": {
     "@qdrant/js-client-rest": "1.13.0",
