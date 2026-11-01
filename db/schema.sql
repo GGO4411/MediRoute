@@ -92,6 +92,14 @@ BEGIN
  INSERT INTO appointment_audit(appointment_id,action,new_status) VALUES(NEW.appointment_id,'CREATED',NEW.status);
 END$$
 
+CREATE TRIGGER IF NOT EXISTS trg_appointment_before_update
+BEFORE UPDATE ON appointments FOR EACH ROW
+BEGIN
+ IF OLD.status IN ('CANCELLED','COMPLETED','NO_SHOW') AND NEW.status<>OLD.status THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Closed appointments cannot be reopened';
+ END IF;
+END$
+
 CREATE TRIGGER IF NOT EXISTS trg_appointment_after_update
 AFTER UPDATE ON appointments FOR EACH ROW
 BEGIN
