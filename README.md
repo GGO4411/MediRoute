@@ -25,7 +25,7 @@ MediRoute is a DBMS Level 3 project prototype. Patients describe symptoms in nat
 - Doctor availability creation/removal with overlap checks and safe deletion of unbooked future slots
 - Patient appointment and prescription history
 - Doctor appointment queue and prescription creation (ownership verified in API)
-- Admin interface to embed and add curated routing concepts to Qdrant
+- Admin interface to create and pause doctor profiles, and embed/add curated routing concepts to Qdrant
 
 ## Requirements
 
@@ -145,6 +145,7 @@ SELECT @score AS urgency_score, @level AS urgency_level;
 | POST | `/api/triage` | Run MySQL urgency scoring, then embed/search/save triage unless an emergency flag pauses routing |
 | GET/POST/PATCH | `/api/appointments` | List, book and update authorized appointments |
 | GET/POST | `/api/records` | List and create prescriptions |
+| GET/POST/PATCH | `/api/admin/doctors` | Admin-only specialist directory listing, doctor creation and profile/availability status updates |
 | POST | `/api/admin/corpus` | Admin-only corpus upsert |
 
 ## Tests and checks
