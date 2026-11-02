@@ -87,7 +87,9 @@ export async function PATCH(req:NextRequest){
   const updates=columns.filter(([key])=>fields[key]!==undefined);
   if(updates.length){
    const sql='UPDATE doctors SET '+updates.map(([,column])=>'`'+column+'`=?').join(',')+' WHERE doctor_id=?';
-   await conn.execute(sql,[...updates.map(([key])=>fields[key]),doctorId]);
+   const params:(string|number|boolean)[]=updates.map(([key])=>fields[key] as string|number|boolean);
+   params.push(doctorId);
+   await conn.execute(sql,params);
   }
   await conn.commit();return NextResponse.json({message:'Doctor directory updated.'});
  }catch(e){await conn.rollback();return serverError(e);}finally{conn.release();}
