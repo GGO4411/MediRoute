@@ -159,6 +159,17 @@ discussion. The web app uses one service DB account and enforces each end user's
 permissions by looking up their role in MySQL; it does not switch native DB roles
 for every HTTP request.
 
+## Report and demo deliverables
+
+- Project report: docs/PROJECT_REPORT.md
+- Deliverable traceability checklist: docs/DELIVERABLE_TRACEABILITY.md
+- Schema-aligned ER diagram: docs/ER_DIAGRAM.md
+- Technology justification: docs/TECHNOLOGY_JUSTIFICATION.md
+- Viva and walkthrough guide: docs/DEMO_GUIDE.md
+
+The report includes placeholders for team identifiers and individual contributions;
+complete these with accurate team information before submission.
+
 ## Main API routes
 
 | Method | Route | Purpose |
