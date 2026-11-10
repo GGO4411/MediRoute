@@ -44,6 +44,10 @@ jobs:
       - run: npm run db:init
       - run: npm run db:seed
       - run: npm run test:db
+      - name: Execute SQL DML and query showcases
+        run: |
+          mysql -h "$MYSQL_HOST" -P "$MYSQL_PORT" -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" < db/dml_examples.sql
+          mysql -h "$MYSQL_HOST" -P "$MYSQL_PORT" -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" < db/query_showcase.sql
       - run: npm run test:triage
       - name: Wait for Qdrant
         run: |

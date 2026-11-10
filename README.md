@@ -176,7 +176,7 @@ for every HTTP request.
 | GET/POST/PATCH | `/api/appointments` | List, book and update authorized appointments |
 | GET/POST | `/api/records` | List and create prescriptions |
 | GET/POST/PATCH | `/api/admin/doctors` | Admin-only specialist directory listing, doctor creation and profile/availability status updates |
-| POST | `/api/admin/corpus` | Admin-only corpus upsert |
+| GET/POST/DELETE | `/api/admin/corpus` | Admin-only vector corpus listing, upsert and delete |
 
 ## Tests and checks
 
