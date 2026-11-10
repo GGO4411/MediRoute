@@ -1,7 +1,7 @@
 import { NextRequest,NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
-import { getSession,type SessionUser } from '@/lib/auth';
+import { getSession,hasPermission,type SessionUser } from '@/lib/auth';
 import { db,DBRow } from '@/lib/db';
 import { serverError } from '@/lib/http';
 
@@ -28,7 +28,7 @@ const updateSchema=z.object({
 async function requireAdmin(req:NextRequest):Promise<{user?:SessionUser;response?:NextResponse}>{
  const user=await getSession(req);
  if(!user)return {response:NextResponse.json({error:'Authentication required.'},{status:401})};
- if(user.role!=='ADMIN')return {response:NextResponse.json({error:'Administrator access required.'},{status:403})};
+ if(!(await hasPermission(user.userId,'DOCTOR_MANAGE')))return {response:NextResponse.json({error:'Database permission denied.'},{status:403})};
  return {user};
 }
 export async function GET(req:NextRequest){

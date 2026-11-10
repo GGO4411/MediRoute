@@ -1,6 +1,6 @@
 import { NextRequest,NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getSession } from '@/lib/auth';
+import { getSession,hasPermission } from '@/lib/auth';
 import { db,DBRow } from '@/lib/db';
 import { assessUrgency,EMERGENCY_MESSAGE } from '@/lib/triage';
 import { searchCorpus } from '@/lib/vector';
@@ -9,7 +9,7 @@ const schema=z.object({symptoms:z.string().trim().min(10).max(3000)});
 export async function POST(req:NextRequest){
  try{
   const user=await getSession(req);if(!user)return NextResponse.json({error:'Sign in to submit symptoms.'},{status:401});
-  if(user.role!=='PATIENT')return NextResponse.json({error:'Only patient accounts can submit symptoms.'},{status:403});
+  if(!(await hasPermission(user.userId,'TRIAGE_CREATE')))return NextResponse.json({error:'Your database role does not permit symptom submissions.'},{status:403});
   const p=schema.safeParse(await req.json());if(!p.success)return NextResponse.json({error:'Describe symptoms in at least 10 characters.'},{status:400});
   const ruleAssessment=assessUrgency(p.data.symptoms);let urgency=ruleAssessment.urgency,score=ruleAssessment.score,flags=ruleAssessment.flags;
   let matches:any[]=[];let vectorAvailable=true;let triageId=0;

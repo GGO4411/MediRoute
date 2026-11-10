@@ -1,6 +1,6 @@
 import { NextRequest,NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getSession } from '@/lib/auth';
+import { getSession,hasPermission } from '@/lib/auth';
 import { db,DBRow } from '@/lib/db';
 import { serverError } from '@/lib/http';
 const schema=z.object({slotId:z.number().int().positive(),triageId:z.number().int().positive().optional(),reason:z.string().max(1500).optional()});
@@ -9,14 +9,15 @@ export async function GET(req:NextRequest){
  try{
   const user=await getSession(req);if(!user)return NextResponse.json({error:'Authentication required.'},{status:401});
   let sql='SELECT * FROM v_appointment_details';let args:number[]=[];
-  if(user.role==='PATIENT'){sql+=' WHERE patient_id=?';args=[user.userId];}
-  else if(user.role==='DOCTOR'){const [d]=await db().execute<DBRow[]>('SELECT doctor_id FROM doctors WHERE user_id=?',[user.userId]);if(!d[0])return NextResponse.json({appointments:[]});sql+=' WHERE doctor_id=?';args=[Number(d[0].doctor_id)];}
+  if(user.role==='PATIENT'){if(!(await hasPermission(user.userId,'APPOINTMENT_READ_OWN')))return NextResponse.json({error:'Database permission denied.'},{status:403});sql+=' WHERE patient_id=?';args=[user.userId];}
+  else if(user.role==='DOCTOR'){if(!(await hasPermission(user.userId,'APPOINTMENT_READ_ASSIGNED')))return NextResponse.json({error:'Database permission denied.'},{status:403});const [d]=await db().execute<DBRow[]>('SELECT doctor_id FROM doctors WHERE user_id=?',[user.userId]);if(!d[0])return NextResponse.json({appointments:[]});sql+=' WHERE doctor_id=?';args=[Number(d[0].doctor_id)];}
+  else if(user.role==='ADMIN'&&!(await hasPermission(user.userId,'APPOINTMENT_READ_ALL')))return NextResponse.json({error:'Database permission denied.'},{status:403});
   sql+=' ORDER BY starts_at DESC LIMIT 100';const [rows]=await db().execute<DBRow[]>(sql,args);return NextResponse.json({appointments:rows});
  }catch(e){return serverError(e);}
 }
 export async function POST(req:NextRequest){
  const user=await getSession(req);if(!user)return NextResponse.json({error:'Authentication required.'},{status:401});
- if(user.role!=='PATIENT')return NextResponse.json({error:'Only patients can book appointments.'},{status:403});
+ if(!(await hasPermission(user.userId,'APPOINTMENT_BOOK')))return NextResponse.json({error:'Your database role cannot book appointments.'},{status:403});
  const p=schema.safeParse(await req.json());if(!p.success)return NextResponse.json({error:'Provide a valid slot.'},{status:400});
  const conn=await db().getConnection();
  try{
@@ -51,12 +52,15 @@ export async function PATCH(req:NextRequest){
   const current=String(a.status),next=p.data.status;
   if(finalStates.includes(current))return NextResponse.json({error:'This appointment is already closed and cannot be reopened.'},{status:409});
   if(user.role==='PATIENT'){
+   if(!(await hasPermission(user.userId,'APPOINTMENT_CANCEL_OWN')))return NextResponse.json({error:'Database permission denied.'},{status:403});
    if(Number(a.patient_id)!==user.userId||next!=='CANCELLED')return NextResponse.json({error:'Patients may only cancel their own active appointments.'},{status:403});
   }else if(user.role==='DOCTOR'){
+   if(!(await hasPermission(user.userId,'APPOINTMENT_COMPLETE_ASSIGNED')))return NextResponse.json({error:'Database permission denied.'},{status:403});
    const [d]=await db().execute<DBRow[]>('SELECT doctor_id FROM doctors WHERE user_id=?',[user.userId]);
    if(!d[0]||Number(d[0].doctor_id)!==Number(a.doctor_id))return NextResponse.json({error:'This appointment is not assigned to you.'},{status:403});
    if(!['COMPLETED','NO_SHOW'].includes(next)||current!=='CONFIRMED')return NextResponse.json({error:'Doctors can complete or mark no-show only for confirmed appointments.'},{status:409});
   }else if(user.role==='ADMIN'){
+   if(!(await hasPermission(user.userId,'APPOINTMENT_MANAGE_ALL')))return NextResponse.json({error:'Database permission denied.'},{status:403});
    if(!['CONFIRMED','CANCELLED','NO_SHOW'].includes(next))return NextResponse.json({error:'Administrators can confirm, cancel or mark active bookings as no-show.'},{status:403});
    if(next==='CONFIRMED'&&current!=='BOOKED')return NextResponse.json({error:'Only booked appointments can be confirmed.'},{status:409});
   }else return NextResponse.json({error:'Forbidden.'},{status:403});

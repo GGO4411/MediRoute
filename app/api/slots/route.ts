@@ -1,6 +1,6 @@
 import { NextRequest,NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getSession } from '@/lib/auth';
+import { getSession,hasPermission } from '@/lib/auth';
 import { db,DBRow } from '@/lib/db';
 import { serverError } from '@/lib/http';
 const querySchema=z.object({doctorId:z.coerce.number().int().positive()});
@@ -11,7 +11,8 @@ export async function GET(req:NextRequest){
   const mine=req.nextUrl.searchParams.get('mine')==='1';
   if(mine){
    const user=await getSession(req);if(!user)return NextResponse.json({error:'Authentication required.'},{status:401});
-   if(!['DOCTOR','ADMIN'].includes(user.role))return NextResponse.json({error:'Doctor or admin access required.'},{status:403});
+   const permission=user.role==='DOCTOR'?'SLOT_MANAGE_OWN':user.role==='ADMIN'?'SLOT_MANAGE_ALL':'';
+   if(!permission||!(await hasPermission(user.userId,permission)))return NextResponse.json({error:'Database permission denied.'},{status:403});
    let sql=`SELECT s.slot_id AS slotId,d.doctor_id AS doctorId,u.full_name AS doctorName,s.starts_at AS startsAt,s.ends_at AS endsAt
     FROM appointment_slots s JOIN doctors d ON d.doctor_id=s.doctor_id JOIN users u ON u.user_id=d.user_id
     WHERE s.status='AVAILABLE' AND s.starts_at>UTC_TIMESTAMP()`;
@@ -34,7 +35,7 @@ export async function GET(req:NextRequest){
 export async function POST(req:NextRequest){
  try{
   const user=await getSession(req);if(!user)return NextResponse.json({error:'Authentication required.'},{status:401});
-  if(user.role!=='DOCTOR')return NextResponse.json({error:'Only doctors can create their own availability.'},{status:403});
+  if(user.role!=='DOCTOR'||!(await hasPermission(user.userId,'SLOT_MANAGE_OWN')))return NextResponse.json({error:'Your database role cannot create this availability.'},{status:403});
   const p=createSchema.safeParse(await req.json());if(!p.success)return NextResponse.json({error:'Provide valid ISO start and end timestamps.'},{status:400});
   const start=new Date(p.data.startsAt),end=new Date(p.data.endsAt),duration=(end.getTime()-start.getTime())/60000;
   if(!Number.isFinite(duration)||start.getTime()<=Date.now()||duration<15||duration>180||start.getTime()>Date.now()+90*86400000)
@@ -56,7 +57,8 @@ export async function POST(req:NextRequest){
 }
 export async function DELETE(req:NextRequest){
  const user=await getSession(req);if(!user)return NextResponse.json({error:'Authentication required.'},{status:401});
- if(!['DOCTOR','ADMIN'].includes(user.role))return NextResponse.json({error:'Doctor or admin access required.'},{status:403});
+ const deletePermission=user.role==='DOCTOR'?'SLOT_MANAGE_OWN':user.role==='ADMIN'?'SLOT_MANAGE_ALL':'';
+ if(!deletePermission||!(await hasPermission(user.userId,deletePermission)))return NextResponse.json({error:'Database permission denied.'},{status:403});
  const slotId=Number(req.nextUrl.searchParams.get('slotId'));if(!Number.isSafeInteger(slotId)||slotId<=0)return NextResponse.json({error:'A valid slotId is required.'},{status:400});
  const conn=await db().getConnection();
  try{
