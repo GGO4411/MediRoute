@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1300" viewBox="0 0 1800 1300">
+<defs>
+  <style>
+    .bg{fill:#f7f9fc}.title{font:700 34px Arial;fill:#1e3a5f}.sub{font:16px Arial;fill:#667085}
+    .card{fill:#fff;stroke:#9aa9bd;stroke-width:2;rx:12}.head{fill:#1e3a5f}
+    .headtxt{font:700 17px Arial;fill:#fff}.attr{font:14px 'Courier New',monospace;fill:#26364a}
+    .key{font:700 12px Arial;fill:#9a4a00}.rel{fill:none;stroke:#526783;stroke-width:2.2}
+    .lbl{font:13px Arial;fill:#334155}.note{font:13px Arial;fill:#475467}
+    .dashed{stroke:#d97706;stroke-dasharray:8 6}
+  </style>
+</defs>
+<rect class="bg" width="1800" height="1300"/>
+<text class="title" x="55" y="55">MediRoute — Entity–Relationship Diagram</text>
+<text class="sub" x="55" y="86">Based on db/schema.sql • MySQL relational schema • 10 tables</text>
+
+<!-- relationships, drawn behind entities -->
+<path class="rel" d="M390 250 H480 V420 H545"/>
+<text class="lbl" x="435" y="235">user_id · 1 : 0..1</text>
+<path class="rel" d="M1040 210 V270"/>
+<text class="lbl" x="1055" y="246">specialty_id · 1 : N</text>
+<path class="rel" d="M1075 430 H1260 V225 H1330"/>
+<text class="lbl" x="1140" y="415">doctor_id · 1 : N</text>
+<path class="rel" d="M230 250 V575"/>
+<text class="lbl" x="245" y="420">patient_id · 1 : N</text>
+<path class="rel" d="M390 175 H455 V785 H545"/>
+<text class="lbl" x="420" y="760">patient_id · 1 : N</text>
+<path class="rel" d="M810 520 V720"/>
+<text class="lbl" x="825" y="650">doctor_id · 1 : N</text>
+<path class="rel" d="M1510 370 V720 H1075"/>
+<text class="lbl" x="1370" y="700">slot_id · 1 : N*</text>
+<path class="rel" d="M390 680 H475 V850 H545"/>
+<text class="lbl" x="400" y="830">triage_id · optional</text>
+<path class="rel" d="M1075 850 H1220 V900 H1330"/>
+<text class="lbl" x="1130" y="835">appointment_id · 1 : N</text>
+<path class="rel dashed" d="M810 940 V1090"/>
+<text class="lbl" x="825" y="1065">appointment_id · logical reference</text>
+<path class="rel" d="M230 250 V1055 H1330 V1090"/>
+<text class="lbl" x="720" y="1040">patient_id · 1 : N</text>
+<path class="rel" d="M390 1170 H1290 V980 H1330"/>
+<text class="lbl" x="855" y="1150">role_code (logical role mapping)</text>
+
+<!-- USERS -->
+<rect class="card" x="55" y="125" width="335" height="285"/><rect class="head" x="55" y="125" width="335" height="42" rx="10"/>
+<text class="headtxt" x="222" y="153" text-anchor="middle">USERS</text>
+<text class="attr" x="78" y="195">PK  user_id</text><text class="attr" x="78" y="224">full_name</text><text class="attr" x="78" y="253">email  [UNIQUE]</text><text class="attr" x="78" y="282">password_hash</text><text class="attr" x="78" y="311">role  [PATIENT / DOCTOR / ADMIN]</text><text class="attr" x="78" y="340">phone</text><text class="attr" x="78" y="369">created_at, updated_at</text>
+
+<!-- SPECIALTIES -->
+<rect class="card" x="865" y="105" width="350" height="190"/><rect class="head" x="865" y="105" width="350" height="42" rx="10"/>
+<text class="headtxt" x="1040" y="133" text-anchor="middle">SPECIALTIES</text>
+<text class="attr" x="890" y="178">PK  specialty_id</text><text class="attr" x="890" y="207">name  [UNIQUE]</text><text class="attr" x="890" y="236">description</text><text class="attr" x="890" y="265">is_active</text>
+
+<!-- DOCTORS -->
+<rect class="card" x="545" y="270" width="530" height="260"/><rect class="head" x="545" y="270" width="530" height="42" rx="10"/>
+<text class="headtxt" x="810" y="298" text-anchor="middle">DOCTORS</text>
+<text class="attr" x="570" y="343">PK  doctor_id</text><text class="attr" x="570" y="372">FK  user_id → USERS [UNIQUE]</text><text class="attr" x="570" y="401">FK  specialty_id → SPECIALTIES</text><text class="attr" x="570" y="430">qualification, years_experience</text><text class="attr" x="570" y="459">consultation_fee, bio</text><text class="attr" x="570" y="488">is_accepting_patients, created_at</text>
+
+<!-- APPOINTMENT SLOTS -->
+<rect class="card" x="1330" y="105" width="410" height="265"/><rect class="head" x="1330" y="105" width="410" height="42" rx="10"/>
+<text class="headtxt" x="1535" y="133" text-anchor="middle">APPOINTMENT_SLOTS</text>
+<text class="attr" x="1355" y="178">PK  slot_id</text><text class="attr" x="1355" y="207">FK  doctor_id → DOCTORS</text><text class="attr" x="1355" y="236">starts_at, ends_at</text><text class="attr" x="1355" y="265">status [AVAILABLE / BOOKED / BLOCKED]</text><text class="attr" x="1355" y="294">UQ  (doctor_id, starts_at)</text><text class="attr" x="1355" y="323">created_at</text>
+
+<!-- TRIAGE -->
+<rect class="card" x="55" y="575" width="335" height="300"/><rect class="head" x="55" y="575" width="335" height="42" rx="10"/>
+<text class="headtxt" x="222" y="603" text-anchor="middle">TRIAGE_SESSIONS</text>
+<text class="attr" x="78" y="645">PK  triage_id</text><text class="attr" x="78" y="674">FK  patient_id → USERS</text><text class="attr" x="78" y="703">symptom_text</text><text class="attr" x="78" y="732">urgency, urgency_score</text><text class="attr" x="78" y="761">safety_flags [JSON]</text><text class="attr" x="78" y="790">top_matches [JSON]</text><text class="attr" x="78" y="819">created_at</text>
+
+<!-- APPOINTMENTS -->
+<rect class="card" x="545" y="720" width="530" height="280"/><rect class="head" x="545" y="720" width="530" height="42" rx="10"/>
+<text class="headtxt" x="810" y="748" text-anchor="middle">APPOINTMENTS</text>
+<text class="attr" x="570" y="793">PK  appointment_id</text><text class="attr" x="570" y="822">FK  patient_id → USERS</text><text class="attr" x="570" y="851">FK  doctor_id → DOCTORS</text><text class="attr" x="570" y="880">FK  slot_id → APPOINTMENT_SLOTS</text><text class="attr" x="570" y="909">FK  triage_id → TRIAGE_SESSIONS [NULL]</text><text class="attr" x="570" y="938">status, urgency, reason, booked_at</text>
+
+<!-- PRESCRIPTIONS -->
+<rect class="card" x="1330" y="720" width="410" height="295"/><rect class="head" x="1330" y="720" width="410" height="42" rx="10"/>
+<text class="headtxt" x="1535" y="748" text-anchor="middle">PRESCRIPTIONS</text>
+<text class="attr" x="1355" y="793">PK  prescription_id</text><text class="attr" x="1355" y="822">FK  appointment_id → APPOINTMENTS</text><text class="attr" x="1355" y="851">FK  doctor_id → DOCTORS</text><text class="attr" x="1355" y="880">FK  patient_id → USERS</text><text class="attr" x="1355" y="909">diagnosis_notes</text><text class="attr" x="1355" y="938">medication_name, dosage</text><text class="attr" x="1355" y="967">instructions, prescribed_at</text>
+
+<!-- AUDIT -->
+<rect class="card" x="545" y="1090" width="530" height="170"/><rect class="head" x="545" y="1090" width="530" height="42" rx="10"/>
+<text class="headtxt" x="810" y="1118" text-anchor="middle">APPOINTMENT_AUDIT</text>
+<text class="attr" x="570" y="1160">PK  audit_id</text><text class="attr" x="570" y="1189">appointment_id [logical reference; no FK]</text><text class="attr" x="570" y="1218">action, old_status, new_status, changed_at</text>
+
+<!-- Permissions -->
+<rect class="card" x="55" y="995" width="335" height="265"/><rect class="head" x="55" y="995" width="335" height="42" rx="10"/>
+<text class="headtxt" x="222" y="1023" text-anchor="middle">PERMISSIONS</text>
+<text class="attr" x="78" y="1065">PK  permission_code</text><text class="attr" x="78" y="1094">description</text>
+<rect class="card" x="1330" y="1090" width="410" height="170"/><rect class="head" x="1330" y="1090" width="410" height="42" rx="10"/>
+<text class="headtxt" x="1535" y="1118" text-anchor="middle">ROLE_PERMISSIONS</text>
+<text class="attr" x="1355" y="1160">PK  role_code</text><text class="attr" x="1355" y="1189">PK / FK  permission_code → PERMISSIONS</text><text class="attr" x="1355" y="1218">Composite PK (role_code, permission_code)</text>
+
+<text class="note" x="55" y="1285">* A slot can have historical appointment rows over time; booking logic and slot status govern current availability. Qdrant is a separate vector store.</text>
+</svg>
