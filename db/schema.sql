@@ -8,7 +8,54 @@ CREATE TABLE IF NOT EXISTS users (
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  INDEX idx_users_role(role)
+ ) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS permissions (
+ permission_code VARCHAR(60) PRIMARY KEY,
+ description VARCHAR(255) NOT NULL
 ) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS role_permissions (
+ role_code VARCHAR(20) NOT NULL,
+ permission_code VARCHAR(60) NOT NULL,
+ PRIMARY KEY(role_code,permission_code),
+ CONSTRAINT fk_role_permission_permission FOREIGN KEY(permission_code)
+  REFERENCES permissions(permission_code) ON DELETE CASCADE,
+ INDEX idx_role_permissions_code(permission_code)
+) ENGINE=InnoDB;
+
+INSERT IGNORE INTO permissions(permission_code,description) VALUES
+ ('DOCTOR_READ','View the active specialist directory'),
+ ('SLOT_READ','View available appointment slots'),
+ ('TRIAGE_CREATE','Submit a symptom-routing request'),
+ ('APPOINTMENT_BOOK','Book an available appointment'),
+ ('APPOINTMENT_READ_OWN','Read the current patient appointments'),
+ ('APPOINTMENT_READ_ASSIGNED','Read appointments assigned to the doctor'),
+ ('APPOINTMENT_READ_ALL','Read all appointments as administrator'),
+ ('APPOINTMENT_CANCEL_OWN','Cancel the current patient active appointment'),
+ ('APPOINTMENT_COMPLETE_ASSIGNED','Complete or mark no-show for an assigned appointment'),
+ ('APPOINTMENT_MANAGE_ALL','Confirm, cancel or mark no-show for any appointment'),
+ ('SLOT_MANAGE_OWN','Manage the current doctor availability'),
+ ('SLOT_MANAGE_ALL','Manage all doctors availability'),
+ ('PRESCRIPTION_READ_OWN','Read the current patient prescriptions'),
+ ('PRESCRIPTION_READ_ASSIGNED','Read prescriptions for assigned doctor'),
+ ('PRESCRIPTION_READ_ALL','Read all prescriptions as administrator'),
+ ('PRESCRIPTION_CREATE_ASSIGNED','Create prescriptions for assigned completed visits'),
+ ('PRESCRIPTION_CREATE_ALL','Create prescriptions as administrator'),
+ ('DOCTOR_MANAGE','Create and update doctor profiles'),
+ ('ROUTING_MANAGE','Read, upsert and delete vector routing concepts');
+
+INSERT IGNORE INTO role_permissions(role_code,permission_code) VALUES
+ ('PATIENT','DOCTOR_READ'),('PATIENT','SLOT_READ'),('PATIENT','TRIAGE_CREATE'),
+ ('PATIENT','APPOINTMENT_BOOK'),('PATIENT','APPOINTMENT_READ_OWN'),
+ ('PATIENT','APPOINTMENT_CANCEL_OWN'),('PATIENT','PRESCRIPTION_READ_OWN'),
+ ('DOCTOR','APPOINTMENT_READ_ASSIGNED'),('DOCTOR','APPOINTMENT_COMPLETE_ASSIGNED'),
+ ('DOCTOR','SLOT_MANAGE_OWN'),('DOCTOR','PRESCRIPTION_READ_ASSIGNED'),
+ ('DOCTOR','PRESCRIPTION_CREATE_ASSIGNED'),
+ ('ADMIN','APPOINTMENT_READ_ALL'),('ADMIN','APPOINTMENT_MANAGE_ALL'),
+ ('ADMIN','SLOT_MANAGE_ALL'),('ADMIN','PRESCRIPTION_READ_ALL'),
+ ('ADMIN','PRESCRIPTION_CREATE_ALL'),('ADMIN','DOCTOR_MANAGE'),
+ ('ADMIN','ROUTING_MANAGE');
 
 CREATE TABLE IF NOT EXISTS specialties (
  specialty_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, name VARCHAR(100) NOT NULL UNIQUE,
@@ -130,6 +177,17 @@ BEGIN
  END IF;
 END$$
 
+CREATE FUNCTION IF NOT EXISTS fn_urgency_level(p_score TINYINT UNSIGNED)
+RETURNS VARCHAR(20)
+DETERMINISTIC
+NO SQL
+RETURN CASE
+ WHEN p_score>=100 THEN 'EMERGENCY'
+ WHEN p_score>=75 THEN 'URGENT'
+ WHEN p_score>=45 THEN 'SOON'
+ ELSE 'ROUTINE'
+END$$
+
 CREATE PROCEDURE IF NOT EXISTS sp_calculate_urgency(IN p_symptoms TEXT,OUT p_score TINYINT UNSIGNED,OUT p_level VARCHAR(20))
 BEGIN
  DECLARE s TEXT; SET s=LOWER(COALESCE(p_symptoms,'')); SET p_score=0;
@@ -141,7 +199,7 @@ BEGIN
   SET p_score=45;
  ELSEIF s<>'' THEN SET p_score=15;
  END IF;
- SET p_level=CASE WHEN p_score>=100 THEN 'EMERGENCY' WHEN p_score>=75 THEN 'URGENT' WHEN p_score>=45 THEN 'SOON' ELSE 'ROUTINE' END;
+ SET p_level=fn_urgency_level(p_score);
 END$$
 DELIMITER ;
 

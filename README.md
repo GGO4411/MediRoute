@@ -96,6 +96,8 @@ Public registration creates PATIENT accounts only. Doctor and administrator acco
 - `db/migrations.sql`: optional one-time `ALTER TABLE` example adding `preferred_language`; do not run it more than once.
 - `db/ddl_examples.sql`: commented `ALTER`/`DROP` statements for demonstrating schema changes and rollback in a disposable database.
 - Primary keys, foreign keys, unique constraints, CHECK constraints, and secondary indexes enforce consistency and support reads.
+- The permissions and role_permissions tables store the database-backed authorization matrix. Protected API handlers resolve the live user's database role to permission codes before sensitive operations.
+- See docs/ER_DIAGRAM.md, db/dml_examples.sql, db/query_showcase.sql and db/database_rbac.sql for the demo artefacts.
 - `v_doctor_directory` and `v_appointment_details` encapsulate common joins.
 - `sp_calculate_urgency` is a stored procedure illustrating database-side rule scoring.
 - Triggers verify slot status/doctor ownership and triage ownership, reject emergency-triage bookings, mark slots booked after insertion, release slots on cancellation, prevent reopening closed bookings, and write status-change audit rows.
@@ -129,6 +131,34 @@ CALL sp_calculate_urgency('persistent headache and light sensitivity', @score, @
 SELECT @score AS urgency_score, @level AS urgency_level;
 ```
 
+## Demo SQL and DBMS artefacts
+
+Run the analytical examples with:
+
+~~~bash
+mysql -h 127.0.0.1 -u root -p mediroute < db/query_showcase.sql
+~~~
+
+The query showcase includes joins, nested and correlated subqueries, aggregate
+queries, window functions, a CTE and a recursive CTE generating a 14-day calendar.
+The DML script demonstrates INSERT, SELECT, UPDATE and DELETE inside a transaction
+that is rolled back after the demonstration:
+
+~~~bash
+mysql -h 127.0.0.1 -u root -p mediroute < db/dml_examples.sql
+~~~
+
+Inspect the database role-to-permission matrix with:
+
+~~~sql
+SELECT role_code,permission_code FROM role_permissions ORDER BY role_code,permission_code;
+~~~
+
+db/database_roles.sql contains optional native MySQL-role examples for a DBA
+discussion. The web app uses one service DB account and enforces each end user's
+permissions by looking up their role in MySQL; it does not switch native DB roles
+for every HTTP request.
+
 ## Main API routes
 
 | Method | Route | Purpose |
@@ -158,7 +188,7 @@ npm run test:db
 npm run test:vectors
 ```
 
-`test:db` requires the MySQL schema and seed data (`npm run db:init` and `npm run db:seed`). It checks the stored procedure, emergency booking guard, slot booking/duplicate prevention, cancellation, slot reuse and audit trigger. The GitHub Actions workflow runs these checks against disposable MySQL 8.4 and Qdrant services. `test:vectors` requires Qdrant to be running and the sample vector corpus to have been seeded with `npm run vectors:seed`.
+`test:db` requires the MySQL schema and seed data (`npm run db:init` and `npm run db:seed`). It checks the stored function and procedure, database permission matrix, emergency booking guard, slot booking/duplicate prevention, cancellation, slot reuse and audit trigger. The GitHub Actions workflow runs these checks against disposable MySQL 8.4 and Qdrant services. `test:vectors` requires Qdrant to be running and the sample vector corpus to have been seeded with `npm run vectors:seed`. It checks semantic retrieval and vector create/upsert, read and delete operations.
 
 Manual DB/application checks:
 1. Register a patient; verify the DB contains a bcrypt hash, never the original password.
@@ -196,4 +226,4 @@ npm run vectors:seed
 - The warning rules are simple text patterns and are not validated for clinical use. A potential emergency result deliberately skips Qdrant specialist matching and online booking; this is a protective demonstration behaviour, not a validated triage guarantee.
 - The seed vector corpus is small, synthetic and for demonstrating semantic retrieval only; it is not an authoritative medical knowledge base.
 - No payments, notifications, interoperability with hospital systems, clinical verification, consent workflow or production-grade deployment controls are included.
-- The DBMS report, ER diagram, screenshots and other formal documentation deliverables are intentionally not included in this implementation pass.
+- The formal academic report, presentation slides, deployment screenshots and individual-contribution statements still need to be prepared by the team. The repository includes a schema-accurate ER diagram, SQL showcase and technical/demo notes.

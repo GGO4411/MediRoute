@@ -13,6 +13,12 @@ async function main(){
  try{
   await conn.query("CALL sp_calculate_urgency('cannot breathe', @test_score, @test_level)");
   const [scoreRows]:any=await conn.query('SELECT @test_score AS score,@test_level AS level');
+  const [functionRows]:any=await conn.query('SELECT fn_urgency_level(100) AS emergency_level,fn_urgency_level(45) AS soon_level');
+  assert.equal(functionRows[0].emergency_level,'EMERGENCY','stored function should map score 100 to emergency');
+  assert.equal(functionRows[0].soon_level,'SOON','stored function should map score 45 to soon');
+  const [permissionRows]:any=await conn.execute("SELECT COUNT(*) AS n FROM role_permissions WHERE role_code='ADMIN' AND permission_code='ROUTING_MANAGE'");
+  assert.equal(Number(permissionRows[0].n),1,'database RBAC should grant routing management to ADMIN');
+
   assert.equal(Number(scoreRows[0].score),100,'stored procedure should flag emergency phrase');
   assert.equal(scoreRows[0].level,'EMERGENCY','stored procedure should return emergency level');
 
