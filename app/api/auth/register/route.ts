@@ -6,9 +6,10 @@ import { createSession } from '@/lib/auth';
 import { serverError } from '@/lib/http';
 import { hasMysqlError } from '@/lib/mysql-errors';
 import type { ResultSetHeader } from 'mysql2';
-const schema=z.object({name:z.string().min(2).max(120),email:z.string().email().max(190),password:z.string().min(8).max(72),phone:z.string().max(20).optional()});
+import { strongPasswordSchema } from '@/lib/password-policy';
+const schema=z.object({name:z.string().min(2).max(120),email:z.string().email().max(190),password:strongPasswordSchema,phone:z.string().max(20).optional()});
 export async function POST(req:NextRequest){
- try{const p=schema.safeParse(await req.json());if(!p.success)return NextResponse.json({error:'Enter a valid name, email and password (at least 8 characters).'},{status:400});
+ try{const p=schema.safeParse(await req.json());if(!p.success)return NextResponse.json({error:p.error.issues[0]?.message||'Enter valid account details.'},{status:400});
   const {name,email,password,phone}=p.data,hash=await bcrypt.hash(password,12);
   const [r]=await db().execute<ResultSetHeader>("INSERT INTO users(full_name,email,password_hash,role,phone) VALUES(?,?,?,'PATIENT',?)",[name,email.toLowerCase(),hash,phone||null]);
   const user={userId:Number(r.insertId),name,email:email.toLowerCase(),role:'PATIENT' as const};await createSession(user);

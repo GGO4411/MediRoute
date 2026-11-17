@@ -41,6 +41,7 @@ jobs:
         with:
           node-version: 22
       - run: npm install --no-audit --no-fund
+      - run: npm run test:password
       - run: npm run db:init
       - run: npm run db:seed
       - name: Allow trusted trigger creators for CI migration

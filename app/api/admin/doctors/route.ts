@@ -6,11 +6,12 @@ import { db,DBRow } from '@/lib/db';
 import { serverError } from '@/lib/http';
 import { hasMysqlError } from '@/lib/mysql-errors';
 import type { ResultSetHeader } from 'mysql2';
+import { strongPasswordSchema } from '@/lib/password-policy';
 
 const createSchema=z.object({
  name:z.string().min(2).max(120),
  email:z.string().email().max(190),
- password:z.string().min(8).max(72),
+ password:strongPasswordSchema,
  specialty:z.string().min(2).max(100),
  qualification:z.string().min(2).max(180),
  yearsExperience:z.number().int().min(0).max(70),
