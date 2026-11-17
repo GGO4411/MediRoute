@@ -2,7 +2,11 @@
 
 **Source of truth:** `db/schema.sql` (current MySQL 8.4 implementation).
 
-This document presents the logical relations in standard relational-schema notation, followed by the physical MySQL attributes, keys, constraints and relationship cardinalities.
+## Visual relational-schema diagram
+
+The companion diagram follows the relation-box layout: each relation is a horizontal row of attribute cells; primary-key attributes are underlined and labelled; foreign-key attributes are highlighted; red dependency arrows show primary key → non-key attributes. The FK reference map below the boxes identifies each child-column → parent-key relationship.
+
+The downloadable high-resolution diagram is supplied separately as `MediRoute_Relational_Schema.svg` / `.png`.
 
 ## 1. Notation
 
