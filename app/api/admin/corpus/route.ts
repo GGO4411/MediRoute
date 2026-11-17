@@ -4,14 +4,7 @@ import { getSession,hasPermission } from '@/lib/auth';
 import { ensureCollection,qdrant,COLLECTION,pointId } from '@/lib/vector';
 import { embed } from '@/lib/embeddings';
 import { readJsonBody,serverError,validationError } from '@/lib/http';
-
-const schema=z.object({
- id:z.string().min(2).max(100),
- condition:z.string().min(3).max(180),
- description:z.string().min(10).max(2500),
- specialty:z.string().min(2).max(100),
- keywords:z.array(z.string().max(60)).max(30).default([])
-});
+import { vectorCorpusEntrySchema } from '@/lib/vector-corpus-schema';
 async function authorize(req:NextRequest){
  const user=await getSession(req);
  if(!user)return {response:NextResponse.json({error:'Authentication required.'},{status:401})};
@@ -34,7 +27,7 @@ export async function GET(req:NextRequest){
 export async function POST(req:NextRequest){
  try{
   const auth=await authorize(req);if(auth.response)return auth.response;
-  const body=await readJsonBody(req);if(!body.ok)return body.response;const p=schema.safeParse(body.value);
+  const body=await readJsonBody(req);if(!body.ok)return body.response;const p=vectorCorpusEntrySchema.safeParse(body.value);
   if(!p.success)return validationError(p.error,'Invalid corpus entry.');
   await ensureCollection();
   const vector=await embed(p.data.condition+'. '+p.data.description+'. Symptoms: '+p.data.keywords.join(', '));
