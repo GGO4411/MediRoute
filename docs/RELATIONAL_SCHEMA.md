@@ -1,165 +1,334 @@
 # MediRoute Relational Schema
 
-Derived from the implemented MySQL definitions in `db/schema.sql`.
+**Source of truth:** `db/schema.sql` (current MySQL 8.4 implementation).
 
-**Notation:** PK = Primary Key · FK = Foreign Key · UQ = Unique constraint · NULL = nullable.
+This document presents the logical relations in standard relational-schema notation, followed by the physical MySQL attributes, keys, constraints and relationship cardinalities.
 
-## 1. USERS
+## 1. Notation
 
-| Attribute | Key / Constraint |
-|---|---|
-| `user_id` | PK |
-| `full_name` | NOT NULL |
-| `email` | NOT NULL, UQ |
-| `password_hash` | NOT NULL |
-| `role` | ENUM: `PATIENT`, `DOCTOR`, `ADMIN` |
-| `phone` | Optional |
-| `created_at` | NOT NULL, default current timestamp |
-| `updated_at` | NOT NULL, auto-updated timestamp |
+- **PK** — primary key
+- **FK** — foreign key
+- **UK** — unique candidate key / unique constraint
+- **NN** — NOT NULL
+- **NULL** — nullable
+- `A → R(B)` — attribute A references attribute B in relation R
+- A pair of attributes marked **PK (composite)** forms one combined primary key.
 
-## 2. PERMISSIONS
+## 2. Relational schema notation
 
-| Attribute | Key / Constraint |
-|---|---|
-| `permission_code` | PK |
-| `description` | NOT NULL |
+The bold attribute(s) are the primary key. Foreign-key references are written after the relation.
 
-## 3. ROLE_PERMISSIONS
+```text
+USERS(
+  user_id PK,
+  full_name,
+  email UK,
+  password_hash,
+  role,
+  phone,
+  created_at,
+  updated_at
+)
 
-| Attribute | Key / Constraint |
-|---|---|
-| `role_code` | Part of composite PK |
-| `permission_code` | Part of composite PK, FK → `PERMISSIONS(permission_code)` |
+PERMISSIONS(
+  permission_code PK,
+  description
+)
 
-**Primary key:** (`role_code`, `permission_code`)
+ROLE_PERMISSIONS(
+  role_code PK-part,
+  permission_code PK-part, FK -> PERMISSIONS(permission_code)
+)
+PK = (role_code, permission_code)
 
-## 4. SPECIALTIES
+SPECIALTIES(
+  specialty_id PK,
+  name UK,
+  description,
+  is_active
+)
 
-| Attribute | Key / Constraint |
-|---|---|
-| `specialty_id` | PK |
-| `name` | NOT NULL, UQ |
-| `description` | Optional |
-| `is_active` | NOT NULL, default TRUE |
+DOCTORS(
+  doctor_id PK,
+  user_id FK -> USERS(user_id), UK,
+  specialty_id FK -> SPECIALTIES(specialty_id),
+  qualification,
+  years_experience,
+  consultation_fee,
+  bio,
+  is_accepting_patients,
+  created_at
+)
 
-## 5. DOCTORS
+APPOINTMENT_SLOTS(
+  slot_id PK,
+  doctor_id FK -> DOCTORS(doctor_id),
+  starts_at,
+  ends_at,
+  status,
+  created_at
+)
+UK = (doctor_id, starts_at)
 
-| Attribute | Key / Constraint |
-|---|---|
-| `doctor_id` | PK |
-| `user_id` | FK → `USERS(user_id)`, NOT NULL, UQ |
-| `specialty_id` | FK → `SPECIALTIES(specialty_id)`, NOT NULL |
-| `qualification` | Optional |
-| `years_experience` | NOT NULL, default 0 |
-| `consultation_fee` | NOT NULL, default 0, CHECK ≥ 0 |
-| `bio` | Optional |
-| `is_accepting_patients` | NOT NULL, default TRUE |
-| `created_at` | NOT NULL, default current timestamp |
+TRIAGE_SESSIONS(
+  triage_id PK,
+  patient_id FK -> USERS(user_id),
+  symptom_text,
+  urgency,
+  urgency_score,
+  safety_flags,
+  top_matches,
+  created_at
+)
 
-## 6. APPOINTMENT_SLOTS
+APPOINTMENTS(
+  appointment_id PK,
+  patient_id FK -> USERS(user_id),
+  doctor_id FK -> DOCTORS(doctor_id),
+  slot_id FK -> APPOINTMENT_SLOTS(slot_id),
+  triage_id FK -> TRIAGE_SESSIONS(triage_id), NULL,
+  status,
+  urgency,
+  reason,
+  booked_at
+)
 
-| Attribute | Key / Constraint |
-|---|---|
-| `slot_id` | PK |
-| `doctor_id` | FK → `DOCTORS(doctor_id)`, NOT NULL |
-| `starts_at` | NOT NULL |
-| `ends_at` | NOT NULL, CHECK `ends_at > starts_at` |
-| `status` | ENUM: `AVAILABLE`, `BOOKED`, `BLOCKED` |
-| `created_at` | NOT NULL, default current timestamp |
-| (`doctor_id`, `starts_at`) | Composite UQ |
+PRESCRIPTIONS(
+  prescription_id PK,
+  appointment_id FK -> APPOINTMENTS(appointment_id),
+  doctor_id FK -> DOCTORS(doctor_id),
+  patient_id FK -> USERS(user_id),
+  diagnosis_notes,
+  medication_name,
+  dosage,
+  instructions,
+  prescribed_at
+)
 
-## 7. TRIAGE_SESSIONS
+APPOINTMENT_AUDIT(
+  audit_id PK,
+  appointment_id FK -> APPOINTMENTS(appointment_id),
+  action,
+  old_status,
+  new_status,
+  changed_at
+)
 
-| Attribute | Key / Constraint |
-|---|---|
-| `triage_id` | PK |
-| `patient_id` | FK → `USERS(user_id)`, NOT NULL |
-| `symptom_text` | NOT NULL |
-| `urgency` | ENUM: `ROUTINE`, `SOON`, `URGENT`, `EMERGENCY` |
-| `urgency_score` | NOT NULL, default 0 |
-| `safety_flags` | JSON, optional |
-| `top_matches` | JSON, optional |
-| `created_at` | NOT NULL, default current timestamp |
+APPOINTMENT_RESCHEDULE_AUDIT(
+  reschedule_id PK,
+  appointment_id FK -> APPOINTMENTS(appointment_id),
+  old_slot_id FK -> APPOINTMENT_SLOTS(slot_id),
+  new_slot_id FK -> APPOINTMENT_SLOTS(slot_id),
+  changed_by FK -> USERS(user_id),
+  changed_at
+)
+```
 
-## 8. APPOINTMENTS
+## 3. Physical attributes and constraints
 
-| Attribute | Key / Constraint |
-|---|---|
-| `appointment_id` | PK |
-| `patient_id` | FK → `USERS(user_id)`, NOT NULL |
-| `doctor_id` | FK → `DOCTORS(doctor_id)`, NOT NULL |
-| `slot_id` | FK → `APPOINTMENT_SLOTS(slot_id)`, NOT NULL |
-| `triage_id` | FK → `TRIAGE_SESSIONS(triage_id)`, NULL; ON DELETE SET NULL |
-| `status` | ENUM: `BOOKED`, `CONFIRMED`, `COMPLETED`, `CANCELLED`, `NO_SHOW` |
-| `urgency` | ENUM: `ROUTINE`, `SOON`, `URGENT`, `EMERGENCY` |
-| `reason` | Optional |
-| `booked_at` | NOT NULL, default current timestamp |
+### 3.1 USERS
 
-## 9. PRESCRIPTIONS
-
-| Attribute | Key / Constraint |
-|---|---|
-| `prescription_id` | PK |
-| `appointment_id` | FK → `APPOINTMENTS(appointment_id)`, NOT NULL |
-| `doctor_id` | FK → `DOCTORS(doctor_id)`, NOT NULL |
-| `patient_id` | FK → `USERS(user_id)`, NOT NULL |
-| `diagnosis_notes` | Optional |
-| `medication_name` | NOT NULL |
-| `dosage` | Optional |
-| `instructions` | Optional |
-| `prescribed_at` | NOT NULL, default current timestamp |
-
-## 10. APPOINTMENT_AUDIT
-
-| Attribute | Key / Constraint |
-|---|---|
-| `audit_id` | PK |
-| `appointment_id` | FK → `APPOINTMENTS(appointment_id)`, NOT NULL |
-| `action` | NOT NULL |
-| `old_status` | Optional |
-| `new_status` | Optional |
-| `changed_at` | NOT NULL, default current timestamp |
-
-## 11. APPOINTMENT_RESCHEDULE_AUDIT
-
-| Attribute | Key / Constraint |
-|---|---|
-| `reschedule_id` | PK |
-| `appointment_id` | FK → `APPOINTMENTS(appointment_id)`, NOT NULL |
-| `old_slot_id` | FK → `APPOINTMENT_SLOTS(slot_id)`, NOT NULL |
-| `new_slot_id` | FK → `APPOINTMENT_SLOTS(slot_id)`, NOT NULL |
-| `changed_by` | FK → `USERS(user_id)`, NOT NULL |
-| `changed_at` | NOT NULL, default current timestamp |
-
-## Foreign-Key Relationships
-
-| Referencing table | Foreign key | Referenced table |
+| Attribute | MySQL type | Key / constraint |
 |---|---|---|
-| `ROLE_PERMISSIONS` | `permission_code` | `PERMISSIONS(permission_code)` |
-| `DOCTORS` | `user_id` | `USERS(user_id)` |
-| `DOCTORS` | `specialty_id` | `SPECIALTIES(specialty_id)` |
-| `APPOINTMENT_SLOTS` | `doctor_id` | `DOCTORS(doctor_id)` |
-| `TRIAGE_SESSIONS` | `patient_id` | `USERS(user_id)` |
-| `APPOINTMENTS` | `patient_id` | `USERS(user_id)` |
-| `APPOINTMENTS` | `doctor_id` | `DOCTORS(doctor_id)` |
-| `APPOINTMENTS` | `slot_id` | `APPOINTMENT_SLOTS(slot_id)` |
-| `APPOINTMENTS` | `triage_id` | `TRIAGE_SESSIONS(triage_id)` |
-| `PRESCRIPTIONS` | `appointment_id` | `APPOINTMENTS(appointment_id)` |
-| `PRESCRIPTIONS` | `doctor_id` | `DOCTORS(doctor_id)` |
-| `PRESCRIPTIONS` | `patient_id` | `USERS(user_id)` |
-| `APPOINTMENT_AUDIT` | `appointment_id` | `APPOINTMENTS(appointment_id)` |
-| `APPOINTMENT_RESCHEDULE_AUDIT` | `appointment_id` | `APPOINTMENTS(appointment_id)` |
-| `APPOINTMENT_RESCHEDULE_AUDIT` | `old_slot_id`, `new_slot_id` | `APPOINTMENT_SLOTS(slot_id)` |
-| `APPOINTMENT_RESCHEDULE_AUDIT` | `changed_by` | `USERS(user_id)` |
+| `user_id` | BIGINT UNSIGNED | PK, AUTO_INCREMENT |
+| `full_name` | VARCHAR(120) | NN |
+| `email` | VARCHAR(190) | NN, UK |
+| `password_hash` | VARCHAR(255) | NN |
+| `role` | ENUM('PATIENT','DOCTOR','ADMIN') | NN, DEFAULT 'PATIENT' |
+| `phone` | VARCHAR(20) | NULL |
+| `created_at` | TIMESTAMP | NN, DEFAULT CURRENT_TIMESTAMP |
+| `updated_at` | TIMESTAMP | NN, auto-updated |
 
-## Design Notes
+### 3.2 PERMISSIONS
 
-- `USERS.role` distinguishes patient, doctor and administrator accounts; doctor-specific attributes are stored in `DOCTORS`.
-- `DOCTORS.user_id` is unique, so a user can have at most one doctor profile.
-- A doctor can have multiple appointment slots. A slot can be referenced by historical appointment records after cancellation and release.
-- `APPOINTMENTS.triage_id` is optional.
-- Appointment status audit rows are protected by a foreign key, so a parent appointment cannot be deleted while its audit history remains.
-- Prescription triggers require the referenced appointment, patient and doctor to agree. Appointment slot-change triggers require the old slot to be released and the target slot to be booked for the same doctor.
-- `GET /api/appointments` returns stable descending start-time order, supports server-side status/date filters and `page`/`pageSize` pagination. `PAST` includes all appointments whose slot start is at or before UTC now, including completed visits.
-- Existing installations must apply `db/migrations/20261117_appointment_integrity.sql`. It checks for orphan audit rows and mismatched prescriptions before adding the foreign key; it stops without deleting data if either is found.
-- Qdrant is a separate vector database used for semantic symptom search; it is not part of this relational schema.
+| Attribute | MySQL type | Key / constraint |
+|---|---|---|
+| `permission_code` | VARCHAR(60) | PK |
+| `description` | VARCHAR(255) | NN |
+
+### 3.3 ROLE_PERMISSIONS
+
+| Attribute | MySQL type | Key / constraint |
+|---|---|---|
+| `role_code` | VARCHAR(20) | PK part 1; NN |
+| `permission_code` | VARCHAR(60) | PK part 2; FK → `PERMISSIONS.permission_code`; NN |
+
+**Composite primary key:** `(role_code, permission_code)`.
+
+**Important:** `role_code` has no FK constraint to `USERS.role`. The application uses a logical equality between these values when resolving permissions. `permission_code` is the only FK in this table.
+
+### 3.4 SPECIALTIES
+
+| Attribute | MySQL type | Key / constraint |
+|---|---|---|
+| `specialty_id` | BIGINT UNSIGNED | PK, AUTO_INCREMENT |
+| `name` | VARCHAR(100) | NN, UK |
+| `description` | VARCHAR(500) | NULL |
+| `is_active` | BOOLEAN | NN, DEFAULT TRUE |
+
+### 3.5 DOCTORS
+
+| Attribute | MySQL type | Key / constraint |
+|---|---|---|
+| `doctor_id` | BIGINT UNSIGNED | PK, AUTO_INCREMENT |
+| `user_id` | BIGINT UNSIGNED | NN, FK → `USERS.user_id`, UK |
+| `specialty_id` | BIGINT UNSIGNED | NN, FK → `SPECIALTIES.specialty_id` |
+| `qualification` | VARCHAR(180) | NULL |
+| `years_experience` | TINYINT UNSIGNED | NN, DEFAULT 0 |
+| `consultation_fee` | DECIMAL(10,2) | NN, DEFAULT 0, CHECK >= 0 |
+| `bio` | TEXT | NULL |
+| `is_accepting_patients` | BOOLEAN | NN, DEFAULT TRUE |
+| `created_at` | TIMESTAMP | NN, DEFAULT CURRENT_TIMESTAMP |
+
+The unique constraint on `user_id` limits a user to at most one doctor profile.
+
+### 3.6 APPOINTMENT_SLOTS
+
+| Attribute | MySQL type | Key / constraint |
+|---|---|---|
+| `slot_id` | BIGINT UNSIGNED | PK, AUTO_INCREMENT |
+| `doctor_id` | BIGINT UNSIGNED | NN, FK → `DOCTORS.doctor_id` |
+| `starts_at` | DATETIME | NN |
+| `ends_at` | DATETIME | NN |
+| `status` | ENUM('AVAILABLE','BOOKED','BLOCKED') | NN, DEFAULT 'AVAILABLE' |
+| `created_at` | TIMESTAMP | NN, DEFAULT CURRENT_TIMESTAMP |
+
+**Composite unique key:** `(doctor_id, starts_at)`.
+
+**CHECK constraint:** `ends_at > starts_at`.
+
+### 3.7 TRIAGE_SESSIONS
+
+| Attribute | MySQL type | Key / constraint |
+|---|---|---|
+| `triage_id` | BIGINT UNSIGNED | PK, AUTO_INCREMENT |
+| `patient_id` | BIGINT UNSIGNED | NN, FK → `USERS.user_id` |
+| `symptom_text` | TEXT | NN |
+| `urgency` | ENUM('ROUTINE','SOON','URGENT','EMERGENCY') | NN, DEFAULT 'ROUTINE' |
+| `urgency_score` | TINYINT UNSIGNED | NN, DEFAULT 0 |
+| `safety_flags` | JSON | NULL |
+| `top_matches` | JSON | NULL |
+| `created_at` | TIMESTAMP | NN, DEFAULT CURRENT_TIMESTAMP |
+
+### 3.8 APPOINTMENTS
+
+| Attribute | MySQL type | Key / constraint |
+|---|---|---|
+| `appointment_id` | BIGINT UNSIGNED | PK, AUTO_INCREMENT |
+| `patient_id` | BIGINT UNSIGNED | NN, FK → `USERS.user_id` |
+| `doctor_id` | BIGINT UNSIGNED | NN, FK → `DOCTORS.doctor_id` |
+| `slot_id` | BIGINT UNSIGNED | NN, FK → `APPOINTMENT_SLOTS.slot_id` |
+| `triage_id` | BIGINT UNSIGNED | NULL, FK → `TRIAGE_SESSIONS.triage_id`, ON DELETE SET NULL |
+| `status` | ENUM('BOOKED','CONFIRMED','COMPLETED','CANCELLED','NO_SHOW') | NN, DEFAULT 'BOOKED' |
+| `urgency` | ENUM('ROUTINE','SOON','URGENT','EMERGENCY') | NN, DEFAULT 'ROUTINE' |
+| `reason` | TEXT | NULL |
+| `booked_at` | TIMESTAMP | NN, DEFAULT CURRENT_TIMESTAMP |
+
+There is deliberately no unique constraint on `appointments.slot_id`: historical appointment rows can remain after cancellation and the released slot can be booked again. Booking logic, row locks and triggers protect current slot availability.
+
+### 3.9 PRESCRIPTIONS
+
+| Attribute | MySQL type | Key / constraint |
+|---|---|---|
+| `prescription_id` | BIGINT UNSIGNED | PK, AUTO_INCREMENT |
+| `appointment_id` | BIGINT UNSIGNED | NN, FK → `APPOINTMENTS.appointment_id` |
+| `doctor_id` | BIGINT UNSIGNED | NN, FK → `DOCTORS.doctor_id` |
+| `patient_id` | BIGINT UNSIGNED | NN, FK → `USERS.user_id` |
+| `diagnosis_notes` | TEXT | NULL |
+| `medication_name` | VARCHAR(180) | NN |
+| `dosage` | VARCHAR(120) | NULL |
+| `instructions` | TEXT | NULL |
+| `prescribed_at` | TIMESTAMP | NN, DEFAULT CURRENT_TIMESTAMP |
+
+Database triggers verify that the prescription's appointment, patient and doctor references agree.
+
+### 3.10 APPOINTMENT_AUDIT
+
+| Attribute | MySQL type | Key / constraint |
+|---|---|---|
+| `audit_id` | BIGINT UNSIGNED | PK, AUTO_INCREMENT |
+| `appointment_id` | BIGINT UNSIGNED | NN, FK → `APPOINTMENTS.appointment_id` |
+| `action` | VARCHAR(30) | NN |
+| `old_status` | VARCHAR(20) | NULL |
+| `new_status` | VARCHAR(20) | NULL |
+| `changed_at` | TIMESTAMP | NN, DEFAULT CURRENT_TIMESTAMP |
+
+The appointment reference is enforced by a foreign key in the current schema.
+
+### 3.11 APPOINTMENT_RESCHEDULE_AUDIT
+
+| Attribute | MySQL type | Key / constraint |
+|---|---|---|
+| `reschedule_id` | BIGINT UNSIGNED | PK, AUTO_INCREMENT |
+| `appointment_id` | BIGINT UNSIGNED | NN, FK → `APPOINTMENTS.appointment_id` |
+| `old_slot_id` | BIGINT UNSIGNED | NN, FK → `APPOINTMENT_SLOTS.slot_id` |
+| `new_slot_id` | BIGINT UNSIGNED | NN, FK → `APPOINTMENT_SLOTS.slot_id` |
+| `changed_by` | BIGINT UNSIGNED | NN, FK → `USERS.user_id` |
+| `changed_at` | TIMESTAMP | NN, DEFAULT CURRENT_TIMESTAMP |
+
+The two slot foreign keys refer to different roles of the same parent table: the previous slot and the replacement slot.
+
+## 4. Foreign-key relationship and cardinality matrix
+
+| Parent relation | Child relation | FK in child | Cardinality | Meaning |
+|---|---|---|---|---|
+| USERS | DOCTORS | `user_id` | 1 : 0..1 | A user has at most one doctor profile |
+| SPECIALTIES | DOCTORS | `specialty_id` | 1 : N | One specialty classifies many doctors |
+| DOCTORS | APPOINTMENT_SLOTS | `doctor_id` | 1 : N | One doctor offers many slots |
+| USERS | TRIAGE_SESSIONS | `patient_id` | 1 : N | One patient submits many triage sessions |
+| USERS | APPOINTMENTS | `patient_id` | 1 : N | One patient books many appointments |
+| DOCTORS | APPOINTMENTS | `doctor_id` | 1 : N | One doctor is assigned many appointments |
+| APPOINTMENT_SLOTS | APPOINTMENTS | `slot_id` | 1 : N over history | One slot may be referenced by historical appointment rows over time |
+| TRIAGE_SESSIONS | APPOINTMENTS | `triage_id` | 1 : 0..N; optional on appointment | An appointment can have no triage link or one triage link |
+| APPOINTMENTS | PRESCRIPTIONS | `appointment_id` | 1 : N | An appointment can have multiple prescription rows |
+| DOCTORS | PRESCRIPTIONS | `doctor_id` | 1 : N | A doctor can issue multiple prescriptions |
+| USERS | PRESCRIPTIONS | `patient_id` | 1 : N | A patient can receive multiple prescriptions |
+| APPOINTMENTS | APPOINTMENT_AUDIT | `appointment_id` | 1 : N | An appointment can have multiple status audit events |
+| APPOINTMENTS | APPOINTMENT_RESCHEDULE_AUDIT | `appointment_id` | 1 : N | An appointment can have multiple reschedule events |
+| USERS | APPOINTMENT_RESCHEDULE_AUDIT | `changed_by` | 1 : N | A user can perform multiple reschedules |
+| APPOINTMENT_SLOTS | APPOINTMENT_RESCHEDULE_AUDIT | `old_slot_id` | 1 : N | Slot used as the old slot in history rows |
+| APPOINTMENT_SLOTS | APPOINTMENT_RESCHEDULE_AUDIT | `new_slot_id` | 1 : N | Slot used as the new slot in history rows |
+| PERMISSIONS | ROLE_PERMISSIONS | `permission_code` | 1 : N | A permission can be mapped to multiple roles |
+
+## 5. Unique, check and index constraints
+
+### Unique constraints
+
+- `USERS.email`
+- `SPECIALTIES.name`
+- `DOCTORS.user_id`
+- `APPOINTMENT_SLOTS(doctor_id, starts_at)`
+- `ROLE_PERMISSIONS(role_code, permission_code)` is the composite primary key.
+
+### Check constraints
+
+- `DOCTORS.consultation_fee >= 0`
+- `APPOINTMENT_SLOTS.ends_at > starts_at`
+
+### Important indexes
+
+- `USERS(role)`
+- `ROLE_PERMISSIONS(permission_code)`
+- `DOCTORS(specialty_id, is_accepting_patients)`
+- `APPOINTMENT_SLOTS(status, starts_at, doctor_id)`
+- `TRIAGE_SESSIONS(patient_id, created_at)`
+- `TRIAGE_SESSIONS(urgency, created_at)`
+- `APPOINTMENTS(slot_id)`
+- `APPOINTMENTS(doctor_id, status)`
+- `APPOINTMENTS(patient_id, booked_at)`
+- `PRESCRIPTIONS(patient_id, prescribed_at)`
+- `APPOINTMENT_AUDIT(appointment_id, changed_at)`
+- `APPOINTMENT_RESCHEDULE_AUDIT(appointment_id, changed_at)`
+
+## 6. Views and database objects
+
+The two views are not base relations:
+
+- `v_doctor_directory` — joins doctors, users and specialties.
+- `v_appointment_details` — joins appointments, patient users, doctors, doctor users, specialties and appointment slots.
+
+Stored function, procedure and triggers are defined in `db/schema.sql`; they enforce business rules and are not additional relations.
+
+## 7. Vector-store boundary
+
+Qdrant collection `medical_routing_v1` is separate from this relational schema. Its vectors and payloads are not MySQL tables and therefore do not appear as PK/FK relations here.
