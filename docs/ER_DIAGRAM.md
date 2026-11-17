@@ -73,7 +73,7 @@ erDiagram
         BIGINT patient_id FK
         BIGINT doctor_id FK
         BIGINT slot_id FK
-        BIGINT triage_id FK, "nullable"
+        BIGINT triage_id FK "nullable"
         ENUM status
         ENUM urgency
         TEXT reason
