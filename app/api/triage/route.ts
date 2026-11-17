@@ -4,7 +4,7 @@ import { getSession,hasPermission } from '@/lib/auth';
 import { db,DBRow } from '@/lib/db';
 import { assessUrgency,EMERGENCY_MESSAGE,normalizeSymptomText } from '@/lib/triage';
 import type { Urgency } from '@/lib/triage';
-import { searchCorpus } from '@/lib/vector';
+import { hasUsefulSpecialtyMatch,searchCorpus } from '@/lib/vector';
 import type { CorpusMatch } from '@/lib/vector';
 import { readJsonBody,serverError,validationError } from '@/lib/http';
 import type { ResultSetHeader } from 'mysql2';
@@ -30,11 +30,12 @@ export async function POST(req:NextRequest){
    triageId=Number(r.insertId);
   }finally{conn.release();}
   const specialties=Array.from(new Set(matches.map(m=>String(m.specialty||'')).filter(Boolean)));let doctors:DBRow[]=[];
-  if(urgency!=='EMERGENCY'&&specialties.length){
+  const usefulMatch=hasUsefulSpecialtyMatch(matches);
+  if(urgency!=='EMERGENCY'&&usefulMatch&&specialties.length){
    const marks=specialties.map(()=>'?').join(',');
    const [rows]=await db().execute<DBRow[]>(`SELECT doctor_id,doctor_name,specialty,qualification,years_experience,consultation_fee,bio,is_accepting_patients FROM v_doctor_directory WHERE is_accepting_patients=1 AND specialty IN (${marks}) ORDER BY years_experience DESC`,specialties);
    doctors=rows;
   }
-  return NextResponse.json({triageId,urgency,urgencyScore:score,flags,emergencyMessage:urgency==='EMERGENCY'?EMERGENCY_MESSAGE:null,matches,doctors,vectorAvailable,routingSkipped:urgency==='EMERGENCY',disclaimer:'Administrative routing suggestions only. This is not a diagnosis and does not replace evaluation by a qualified healthcare professional.'});
+  return NextResponse.json({triageId,urgency,urgencyScore:score,flags,emergencyMessage:urgency==='EMERGENCY'?EMERGENCY_MESSAGE:null,matches,doctors,vectorAvailable,routingSkipped:urgency==='EMERGENCY',lowConfidence:matches.length>0&&!usefulMatch,disclaimer:'Administrative routing suggestions only. Similarity is not a probability or diagnosis. This is not a diagnosis and does not replace evaluation by a qualified healthcare professional.'});
  }catch(e){return serverError(e);}
 }

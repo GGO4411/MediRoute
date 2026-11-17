@@ -83,6 +83,7 @@ export interface ClientTriageResult {
  flags: string[];
  emergencyMessage: string | null;
  routingSkipped: boolean;
+ lowConfidence: boolean;
  vectorAvailable: boolean;
  disclaimer: string;
  matches: ClientSemanticMatch[];

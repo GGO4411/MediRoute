@@ -1,6 +1,7 @@
 import { QdrantClient } from '@qdrant/js-client-rest';
 import { createHash } from 'node:crypto';
 import { embed } from './embeddings';
+export { hasUsefulSpecialtyMatch,MINIMUM_SPECIALTY_SUGGESTION_SCORE } from './routing-confidence';
 export const COLLECTION=process.env.QDRANT_COLLECTION||'medical_routing_v1';
 export type CorpusMatch={
  id:string|number;

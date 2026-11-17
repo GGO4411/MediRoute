@@ -1,5 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { assessUrgency, normalizeSymptomText } from '../lib/triage';
+import { hasUsefulSpecialtyMatch } from '../lib/routing-confidence';
 assert.equal(assessUrgency('I have a headache').urgency,'ROUTINE');
 assert.equal(assessUrgency('worsening pain and a fever').urgency,'SOON');
 assert.equal(assessUrgency('difficulty breathing').urgency,'URGENT');
@@ -7,4 +8,7 @@ assert.equal(assessUrgency('chest pain and cannot breathe').urgency,'EMERGENCY')
 assert.equal(normalizeSymptomText('  CHEST\t pain\n and cannot breathe  '),'chest pain and cannot breathe');
 assert.equal(assessUrgency(normalizeSymptomText('CHEST PAIN')).urgency,'EMERGENCY');
 assert.equal(normalizeSymptomText('headache\u2013light sensitivity'),'headache-light sensitivity');
+assert.equal(hasUsefulSpecialtyMatch([{score:0.34,specialty:'Neurology'}]),false,'weak matches do not produce clinician suggestions');
+assert.equal(hasUsefulSpecialtyMatch([{score:0.35,specialty:'Neurology'}]),true,'a match at the configured threshold can produce a suggestion');
+assert.equal(hasUsefulSpecialtyMatch([{score:0.9,specialty:'   '}]),false,'matches without a specialty cannot produce suggestions');
 console.log('Triage rule smoke tests passed.');
