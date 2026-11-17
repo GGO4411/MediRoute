@@ -43,6 +43,8 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npm run db:init
       - run: npm run db:seed
+      - name: Allow trusted trigger creators for CI migration
+        run: mysql -h "$MYSQL_HOST" -P "$MYSQL_PORT" -u root -p"$MYSQL_ROOT_PASSWORD" -e "SET GLOBAL log_bin_trust_function_creators = 1;"
       - name: Apply additive appointment integrity migration
         run: mysql -h "$MYSQL_HOST" -P "$MYSQL_PORT" -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" < db/migrations/20261117_appointment_integrity.sql
       - run: npm run test:db
