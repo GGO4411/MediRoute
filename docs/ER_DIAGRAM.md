@@ -1,153 +1,193 @@
 # MediRoute Entity–Relationship Diagram
 
-This document is the canonical ER diagram for the **current MySQL schema** in `db/schema.sql`.
+This is the Chen-style ER diagram for the current MySQL implementation in `db/schema.sql`. It uses entity rectangles, relationship diamonds, attribute ovals, and cardinality labels, matching the conventional ER format used in the project reference.
 
-## Crow's-foot ER diagram
-
-The diagram uses standard logical/physical ERD notation: each entity is a table, attributes are listed inside the entity, PK/FK/UK identify key roles, and connectors show cardinality. It includes all **11 relational tables**.
+## Chen ER diagram
 
 ```mermaid
-erDiagram
-    USERS {
-        BIGINT user_id PK
-        VARCHAR full_name
-        VARCHAR email UK
-        VARCHAR password_hash
-        ENUM role
-        VARCHAR phone
-        TIMESTAMP created_at
-        TIMESTAMP updated_at
-    }
+flowchart LR
+  subgraph ACCESS["Identity, access and specialist directory"]
+    U[USERS]
+    u1(["user_id · PK"])
+    u2(["full_name"])
+    u3(["email · UK"])
+    u4(["password_hash"])
+    u5(["role"])
+    u6(["phone"])
+    u7(["created_at"])
+    u8(["updated_at"])
+    U --- u1 & u2 & u3 & u4 & u5 & u6 & u7 & u8
 
-    PERMISSIONS {
-        VARCHAR permission_code PK
-        VARCHAR description
-    }
+    S[SPECIALTIES]
+    s1(["specialty_id · PK"])
+    s2(["name · UK"])
+    s3(["description"])
+    s4(["is_active"])
+    S --- s1 & s2 & s3 & s4
 
-    ROLE_PERMISSIONS {
-        VARCHAR role_code PK
-        VARCHAR permission_code PK, FK
-    }
+    D[DOCTORS]
+    d1(["doctor_id · PK"])
+    d2(["user_id · FK, UK"])
+    d3(["specialty_id · FK"])
+    d4(["qualification"])
+    d5(["years_experience"])
+    d6(["consultation_fee"])
+    d7(["bio"])
+    d8(["is_accepting_patients"])
+    d9(["created_at"])
+    D --- d1 & d2 & d3 & d4 & d5 & d6 & d7 & d8 & d9
 
-    SPECIALTIES {
-        BIGINT specialty_id PK
-        VARCHAR name UK
-        VARCHAR description
-        BOOLEAN is_active
-    }
+    P[PERMISSIONS]
+    p1(["permission_code · PK"])
+    p2(["description"])
+    P --- p1 & p2
 
-    DOCTORS {
-        BIGINT doctor_id PK
-        BIGINT user_id FK, UK
-        BIGINT specialty_id FK
-        VARCHAR qualification
-        TINYINT years_experience
-        DECIMAL consultation_fee
-        TEXT bio
-        BOOLEAN is_accepting_patients
-        TIMESTAMP created_at
-    }
+    RP[ROLE_PERMISSIONS]
+    rp1(["role_code · composite PK"])
+    rp2(["permission_code · composite PK, FK"])
+    RP --- rp1 & rp2
+  end
 
-    APPOINTMENT_SLOTS {
-        BIGINT slot_id PK
-        BIGINT doctor_id FK
-        DATETIME starts_at
-        DATETIME ends_at
-        ENUM status
-        TIMESTAMP created_at
-    }
+  subgraph CARE["Patient triage, appointment and records"]
+    T[TRIAGE_SESSIONS]
+    t1(["triage_id · PK"])
+    t2(["patient_id · FK"])
+    t3(["symptom_text"])
+    t4(["urgency"])
+    t5(["urgency_score"])
+    t6(["safety_flags · JSON"])
+    t7(["top_matches · JSON"])
+    t8(["created_at"])
+    T --- t1 & t2 & t3 & t4 & t5 & t6 & t7 & t8
 
-    TRIAGE_SESSIONS {
-        BIGINT triage_id PK
-        BIGINT patient_id FK
-        TEXT symptom_text
-        ENUM urgency
-        TINYINT urgency_score
-        JSON safety_flags
-        JSON top_matches
-        TIMESTAMP created_at
-    }
+    SL[APPOINTMENT_SLOTS]
+    sl1(["slot_id · PK"])
+    sl2(["doctor_id · FK"])
+    sl3(["starts_at"])
+    sl4(["ends_at"])
+    sl5(["status"])
+    sl6(["created_at"])
+    SL --- sl1 & sl2 & sl3 & sl4 & sl5 & sl6
 
-    APPOINTMENTS {
-        BIGINT appointment_id PK
-        BIGINT patient_id FK
-        BIGINT doctor_id FK
-        BIGINT slot_id FK
-        BIGINT triage_id FK "nullable"
-        ENUM status
-        ENUM urgency
-        TEXT reason
-        TIMESTAMP booked_at
-    }
+    A[APPOINTMENTS]
+    a1(["appointment_id · PK"])
+    a2(["patient_id · FK"])
+    a3(["doctor_id · FK"])
+    a4(["slot_id · FK"])
+    a5(["triage_id · nullable FK"])
+    a6(["status"])
+    a7(["urgency"])
+    a8(["reason"])
+    a9(["booked_at"])
+    A --- a1 & a2 & a3 & a4 & a5 & a6 & a7 & a8 & a9
 
-    PRESCRIPTIONS {
-        BIGINT prescription_id PK
-        BIGINT appointment_id FK
-        BIGINT doctor_id FK
-        BIGINT patient_id FK
-        TEXT diagnosis_notes
-        VARCHAR medication_name
-        VARCHAR dosage
-        TEXT instructions
-        TIMESTAMP prescribed_at
-    }
+    RX[PRESCRIPTIONS]
+    rx1(["prescription_id · PK"])
+    rx2(["appointment_id · FK"])
+    rx3(["doctor_id · FK"])
+    rx4(["patient_id · FK"])
+    rx5(["diagnosis_notes"])
+    rx6(["medication_name"])
+    rx7(["dosage"])
+    rx8(["instructions"])
+    rx9(["prescribed_at"])
+    RX --- rx1 & rx2 & rx3 & rx4 & rx5 & rx6 & rx7 & rx8 & rx9
 
-    APPOINTMENT_AUDIT {
-        BIGINT audit_id PK
-        BIGINT appointment_id FK
-        VARCHAR action
-        VARCHAR old_status
-        VARCHAR new_status
-        TIMESTAMP changed_at
-    }
+    AU[APPOINTMENT_AUDIT]
+    au1(["audit_id · PK"])
+    au2(["appointment_id · FK"])
+    au3(["action"])
+    au4(["old_status"])
+    au5(["new_status"])
+    au6(["changed_at"])
+    AU --- au1 & au2 & au3 & au4 & au5 & au6
 
-    APPOINTMENT_RESCHEDULE_AUDIT {
-        BIGINT reschedule_id PK
-        BIGINT appointment_id FK
-        BIGINT old_slot_id FK
-        BIGINT new_slot_id FK
-        BIGINT changed_by FK
-        TIMESTAMP changed_at
-    }
+    RA[APPOINTMENT_RESCHEDULE_AUDIT]
+    ra1(["reschedule_id · PK"])
+    ra2(["appointment_id · FK"])
+    ra3(["old_slot_id · FK"])
+    ra4(["new_slot_id · FK"])
+    ra5(["changed_by · FK"])
+    ra6(["changed_at"])
+    RA --- ra1 & ra2 & ra3 & ra4 & ra5 & ra6
+  end
 
-    USERS ||--o| DOCTORS : "has doctor profile"
-    SPECIALTIES ||--o{ DOCTORS : "classifies"
-    DOCTORS ||--o{ APPOINTMENT_SLOTS : "offers"
-    USERS ||--o{ TRIAGE_SESSIONS : "submits as patient"
-    USERS ||--o{ APPOINTMENTS : "books as patient"
-    DOCTORS ||--o{ APPOINTMENTS : "is assigned"
-    APPOINTMENT_SLOTS ||--o{ APPOINTMENTS : "is referenced by"
-    TRIAGE_SESSIONS o|--o{ APPOINTMENTS : "optional triage link"
-    APPOINTMENTS ||--o{ PRESCRIPTIONS : "has"
-    USERS ||--o{ PRESCRIPTIONS : "receives as patient"
-    DOCTORS ||--o{ PRESCRIPTIONS : "issues"
-    APPOINTMENTS ||--o{ APPOINTMENT_AUDIT : "has status history"
-    APPOINTMENTS ||--o{ APPOINTMENT_RESCHEDULE_AUDIT : "has reschedule history"
-    USERS ||--o{ APPOINTMENT_RESCHEDULE_AUDIT : "changed by"
-    APPOINTMENT_SLOTS ||--o{ APPOINTMENT_RESCHEDULE_AUDIT : "old slot"
-    APPOINTMENT_SLOTS ||--o{ APPOINTMENT_RESCHEDULE_AUDIT : "new slot"
-    PERMISSIONS ||--o{ ROLE_PERMISSIONS : "is assigned through"
+  HAS_PROFILE{HAS PROFILE}
+  CLASSIFIES{CLASSIFIES}
+  OFFERS{OFFERS}
+  SUBMITS{SUBMITS}
+  BOOKS{BOOKS}
+  ATTENDS{ATTENDS}
+  USES_SLOT{USES SLOT}
+  LINKS_TRIAGE{OPTIONALLY LINKS}
+  GRANTS{ASSIGNED VIA}
+  ISSUES{ISSUES}
+  RECEIVES{PATIENT RECEIVES}
+  HAS_RX{HAS}
+  HAS_STATUS_LOG{HAS STATUS LOG}
+  HAS_MOVE_LOG{HAS RESCHEDULE LOG}
+  CHANGED_BY{CHANGED BY}
+  OLD_SLOT{OLD SLOT}
+  NEW_SLOT{NEW SLOT}
+
+  U -- "1" --- HAS_PROFILE
+  HAS_PROFILE -- "0..1" --- D
+  S -- "1" --- CLASSIFIES
+  CLASSIFIES -- "0..N" --- D
+  D -- "1" --- OFFERS
+  OFFERS -- "0..N" --- SL
+  U -- "1" --- SUBMITS
+  SUBMITS -- "0..N" --- T
+  U -- "1" --- BOOKS
+  BOOKS -- "0..N" --- A
+  D -- "1" --- ATTENDS
+  ATTENDS -- "0..N" --- A
+  SL -- "1" --- USES_SLOT
+  USES_SLOT -- "0..N" --- A
+  T -- "0..N" --- LINKS_TRIAGE
+  LINKS_TRIAGE -- "0..1" --- A
+  P -- "1" --- GRANTS
+  GRANTS -- "0..N" --- RP
+  A -- "1" --- HAS_RX
+  HAS_RX -- "0..N" --- RX
+  D -- "1" --- ISSUES
+  ISSUES -- "0..N" --- RX
+  U -- "1" --- RECEIVES
+  RECEIVES -- "0..N" --- RX
+  A -- "1" --- HAS_STATUS_LOG
+  HAS_STATUS_LOG -- "0..N" --- AU
+  A -- "1" --- HAS_MOVE_LOG
+  HAS_MOVE_LOG -- "0..N" --- RA
+  U -- "1" --- CHANGED_BY
+  CHANGED_BY -- "0..N" --- RA
+  SL -- "1" --- OLD_SLOT
+  OLD_SLOT -- "0..N" --- RA
+  SL -- "1" --- NEW_SLOT
+  NEW_SLOT -- "0..N" --- RA
+
+  classDef entity fill:#05aec2,stroke:#047e91,color:#ffffff,stroke-width:2px;
+  classDef relationship fill:#075985,stroke:#06466a,color:#ffffff,stroke-width:2px;
+  classDef attribute fill:#c21850,stroke:#9f1745,color:#ffffff,stroke-width:1.5px;
+  class U,S,D,P,RP,T,SL,A,RX,AU,RA entity;
+  class HAS_PROFILE,CLASSIFIES,OFFERS,SUBMITS,BOOKS,ATTENDS,USES_SLOT,LINKS_TRIAGE,GRANTS,ISSUES,RECEIVES,HAS_RX,HAS_STATUS_LOG,HAS_MOVE_LOG,CHANGED_BY,OLD_SLOT,NEW_SLOT relationship;
+  class u1,u2,u3,u4,u5,u6,u7,u8,s1,s2,s3,s4,d1,d2,d3,d4,d5,d6,d7,d8,d9,p1,p2,rp1,rp2,t1,t2,t3,t4,t5,t6,t7,t8,sl1,sl2,sl3,sl4,sl5,sl6,a1,a2,a3,a4,a5,a6,a7,a8,a9,rx1,rx2,rx3,rx4,rx5,rx6,rx7,rx8,rx9,au1,au2,au3,au4,au5,au6,ra1,ra2,ra3,ra4,ra5,ra6 attribute;
 ```
 
-## Cardinality and relationship notes
+## Cardinality and implementation notes
 
-- **USERS–DOCTORS (1 to 0..1):** a doctor profile must reference one user; the unique constraint on `doctors.user_id` means a user can have at most one doctor profile.
-- **SPECIALTIES–DOCTORS (1 to many):** every doctor references one specialty; a specialty can have multiple doctors.
-- **DOCTORS–APPOINTMENT_SLOTS (1 to many):** each slot belongs to one doctor.
-- **USERS–TRIAGE_SESSIONS (1 to many):** `triage_sessions.patient_id` identifies the patient who submitted each session.
-- **USERS–APPOINTMENTS (1 to many):** `appointments.patient_id` identifies the patient who books each appointment.
-- **DOCTORS–APPOINTMENTS (1 to many):** each appointment is assigned to one doctor.
-- **APPOINTMENT_SLOTS–APPOINTMENTS (1 to many historical references):** each appointment references one slot. The same slot can appear in historical appointment rows over time after cancellation and rebooking; the booking transaction and triggers control current availability.
-- **TRIAGE_SESSIONS–APPOINTMENTS:** an appointment can have zero or one triage session because `appointments.triage_id` is nullable. At the database level, one triage session can be referenced by multiple appointment rows because this FK is not unique.
-- **APPOINTMENTS–PRESCRIPTIONS (1 to many):** each prescription references one appointment. The database triggers additionally check that its patient and doctor agree with the referenced appointment.
-- **APPOINTMENTS–APPOINTMENT_AUDIT (1 to many):** audit rows reference their appointment through an enforced FK.
-- **APPOINTMENTS–APPOINTMENT_RESCHEDULE_AUDIT (1 to many):** each reschedule history row references the appointment and both the previous and new slot.
-- **PERMISSIONS–ROLE_PERMISSIONS (1 to many):** each role-permission mapping references one permission.
+- **USERS–DOCTORS:** one user can have zero or one doctor profile; each doctor profile belongs to exactly one user because `doctors.user_id` is unique and non-null.
+- **SPECIALTIES–DOCTORS:** one specialty can classify many doctors; each doctor references one specialty.
+- **DOCTORS–APPOINTMENT_SLOTS:** one doctor can offer many slots.
+- **USERS–TRIAGE_SESSIONS:** one patient can submit many triage sessions.
+- **USERS–APPOINTMENTS:** one patient can book many appointments.
+- **DOCTORS–APPOINTMENTS:** one doctor can be assigned many appointments.
+- **APPOINTMENT_SLOTS–APPOINTMENTS:** an appointment references one slot. A slot may be referenced by multiple historical appointment rows over time after cancellation and rebooking.
+- **TRIAGE_SESSIONS–APPOINTMENTS:** an appointment can have zero or one triage session. The FK is nullable and not unique, so one triage session can be referenced by multiple appointment rows.
+- **APPOINTMENTS–PRESCRIPTIONS:** one appointment can have multiple prescription rows. The prescription also stores doctor and patient FKs; triggers ensure those values match the appointment.
+- **APPOINTMENTS–APPOINTMENT_AUDIT:** one appointment can have multiple status audit events.
+- **APPOINTMENTS–APPOINTMENT_RESCHEDULE_AUDIT:** one appointment can have multiple reschedule events. The reschedule history also references the old slot, new slot and user who made the change.
+- **PERMISSIONS–ROLE_PERMISSIONS:** one permission can be assigned through multiple role-permission rows.
 
-## Important RBAC modelling note
+**RBAC note:** `ROLE_PERMISSIONS.permission_code` is an enforced FK to `PERMISSIONS.permission_code`. `ROLE_PERMISSIONS.role_code` is part of the composite PK but is not an FK to `USERS.role`; the application performs that role-code match in its permission lookup.
 
-`ROLE_PERMISSIONS.permission_code` is an enforced foreign key to `PERMISSIONS.permission_code`. `ROLE_PERMISSIONS.role_code` is part of the composite primary key, but **it is not a foreign key** to `USERS.role`. The application compares `role_permissions.role_code` with `users.role` in its permission lookup. This is a logical role mapping, not an enforced relational FK.
-
-## Scope
-
-Qdrant collection `medical_routing_v1` is a separate vector database. It is deliberately not represented as a MySQL entity or foreign-key relationship in this ER diagram.
+**Vector-store boundary:** Qdrant collection `medical_routing_v1` is separate from MySQL and is not included in this relational ER diagram.
