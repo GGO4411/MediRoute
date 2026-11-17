@@ -91,6 +91,7 @@ async function main(){
   const fullHistory=await fullHistoryResponse.json();
   const movedHistory=fullHistory.appointments.find((a:any)=>Number(a.appointment_id)===successId);
   assert.ok(movedHistory?.history.some((event:any)=>event.action==='RESCHEDULED'),'history API returns reschedule events');
+  await conn.execute("UPDATE appointments SET status='COMPLETED' WHERE appointment_id=?",[ownedByOtherId]);
   await conn.execute('UPDATE appointment_slots SET starts_at=?,ends_at=? WHERE slot_id=?',[mysqlDate(new Date(Date.now()-2*86400000)),mysqlDate(new Date(Date.now()-2*86400000+1800000)),slotIds[1]]);
   const pastResponse=await requestHistory(users[1],'filter=PAST&page=1&pageSize=100');
   const pastData=await pastResponse.json();
@@ -102,7 +103,6 @@ async function main(){
   let auditDeleteBlocked=false;
   try{await conn.execute('DELETE FROM appointments WHERE appointment_id=?',[successId]);}catch(error:any){auditDeleteBlocked=error?.code==='ER_ROW_IS_REFERENCED_2';}
   assert.ok(auditDeleteBlocked,'appointment audit rows prevent deletion of their parent appointment');
-  await conn.execute("UPDATE appointments SET status='COMPLETED' WHERE appointment_id=?",[ownedByOtherId]);
   let prescriptionMismatchBlocked=false;
   try{await conn.execute('INSERT INTO prescriptions(appointment_id,doctor_id,patient_id,medication_name) VALUES(?,?,?,?)',[ownedByOtherId,doctor.doctor_id,users[0].userId,'Integrity test']);}catch(error:any){prescriptionMismatchBlocked=error?.sqlState==='45000';}
   assert.ok(prescriptionMismatchBlocked,'database trigger rejects a prescription with a patient that differs from its appointment');
