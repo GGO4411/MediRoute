@@ -53,10 +53,10 @@ async function main(){
    const [result]=await conn.execute<any>("INSERT INTO appointment_slots(doctor_id,starts_at,ends_at,status) VALUES(?,?,?,'AVAILABLE')",[doctor.doctor_id,mysqlDate(start),mysqlDate(end)]);
    slotIds.push(Number(result.insertId));
   }
-  async function appointment(patientIndex:number,slotIndex:number){
+  const appointment=async (patientIndex:number,slotIndex:number)=>{
    const [result]=await conn.execute<any>("INSERT INTO appointments(patient_id,doctor_id,slot_id,urgency) VALUES(?,?,?,'ROUTINE')",[users[patientIndex].userId,doctor.doctor_id,slotIds[slotIndex]]);
    const id=Number(result.insertId);appointmentIds.push(id);return id;
-  }
+  };
   const successId=await appointment(0,0);
   const ownedByOtherId=await appointment(1,1);
   const cancelledId=await appointment(0,2);
