@@ -16,14 +16,24 @@ flowchart LR
     u6(["phone"])
     u7(["created_at"])
     u8(["updated_at"])
-    U --- u1 & u2 & u3 & u4 & u5 & u6 & u7 & u8
+    U --- u1
+    U --- u2
+    U --- u3
+    U --- u4
+    U --- u5
+    U --- u6
+    U --- u7
+    U --- u8
 
     S[SPECIALTIES]
     s1(["specialty_id · PK"])
     s2(["name · UK"])
     s3(["description"])
     s4(["is_active"])
-    S --- s1 & s2 & s3 & s4
+    S --- s1
+    S --- s2
+    S --- s3
+    S --- s4
 
     D[DOCTORS]
     d1(["doctor_id · PK"])
@@ -35,17 +45,27 @@ flowchart LR
     d7(["bio"])
     d8(["is_accepting_patients"])
     d9(["created_at"])
-    D --- d1 & d2 & d3 & d4 & d5 & d6 & d7 & d8 & d9
+    D --- d1
+    D --- d2
+    D --- d3
+    D --- d4
+    D --- d5
+    D --- d6
+    D --- d7
+    D --- d8
+    D --- d9
 
     P[PERMISSIONS]
     p1(["permission_code · PK"])
     p2(["description"])
-    P --- p1 & p2
+    P --- p1
+    P --- p2
 
     RP[ROLE_PERMISSIONS]
     rp1(["role_code · composite PK"])
     rp2(["permission_code · composite PK, FK"])
-    RP --- rp1 & rp2
+    RP --- rp1
+    RP --- rp2
   end
 
   subgraph CARE["Patient triage, appointment and records"]
@@ -58,7 +78,14 @@ flowchart LR
     t6(["safety_flags · JSON"])
     t7(["top_matches · JSON"])
     t8(["created_at"])
-    T --- t1 & t2 & t3 & t4 & t5 & t6 & t7 & t8
+    T --- t1
+    T --- t2
+    T --- t3
+    T --- t4
+    T --- t5
+    T --- t6
+    T --- t7
+    T --- t8
 
     SL[APPOINTMENT_SLOTS]
     sl1(["slot_id · PK"])
@@ -67,7 +94,12 @@ flowchart LR
     sl4(["ends_at"])
     sl5(["status"])
     sl6(["created_at"])
-    SL --- sl1 & sl2 & sl3 & sl4 & sl5 & sl6
+    SL --- sl1
+    SL --- sl2
+    SL --- sl3
+    SL --- sl4
+    SL --- sl5
+    SL --- sl6
 
     A[APPOINTMENTS]
     a1(["appointment_id · PK"])
@@ -79,7 +111,15 @@ flowchart LR
     a7(["urgency"])
     a8(["reason"])
     a9(["booked_at"])
-    A --- a1 & a2 & a3 & a4 & a5 & a6 & a7 & a8 & a9
+    A --- a1
+    A --- a2
+    A --- a3
+    A --- a4
+    A --- a5
+    A --- a6
+    A --- a7
+    A --- a8
+    A --- a9
 
     RX[PRESCRIPTIONS]
     rx1(["prescription_id · PK"])
@@ -91,7 +131,15 @@ flowchart LR
     rx7(["dosage"])
     rx8(["instructions"])
     rx9(["prescribed_at"])
-    RX --- rx1 & rx2 & rx3 & rx4 & rx5 & rx6 & rx7 & rx8 & rx9
+    RX --- rx1
+    RX --- rx2
+    RX --- rx3
+    RX --- rx4
+    RX --- rx5
+    RX --- rx6
+    RX --- rx7
+    RX --- rx8
+    RX --- rx9
 
     AU[APPOINTMENT_AUDIT]
     au1(["audit_id · PK"])
@@ -100,7 +148,12 @@ flowchart LR
     au4(["old_status"])
     au5(["new_status"])
     au6(["changed_at"])
-    AU --- au1 & au2 & au3 & au4 & au5 & au6
+    AU --- au1
+    AU --- au2
+    AU --- au3
+    AU --- au4
+    AU --- au5
+    AU --- au6
 
     RA[APPOINTMENT_RESCHEDULE_AUDIT]
     ra1(["reschedule_id · PK"])
@@ -109,7 +162,12 @@ flowchart LR
     ra4(["new_slot_id · FK"])
     ra5(["changed_by · FK"])
     ra6(["changed_at"])
-    RA --- ra1 & ra2 & ra3 & ra4 & ra5 & ra6
+    RA --- ra1
+    RA --- ra2
+    RA --- ra3
+    RA --- ra4
+    RA --- ra5
+    RA --- ra6
   end
 
   HAS_PROFILE{HAS PROFILE}
