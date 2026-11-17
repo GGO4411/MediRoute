@@ -1,4 +1,7 @@
 export type Urgency='ROUTINE'|'SOON'|'URGENT'|'EMERGENCY';
+export function normalizeSymptomText(text:string):string{
+ return text.normalize('NFKC').replace(/[\u2010-\u2015]/g,'-').replace(/\s+/g,' ').trim().toLocaleLowerCase('en-US');
+}
 const rules:Array<{level:Urgency;score:number;pattern:RegExp;message:string}>=[
  {level:'EMERGENCY',score:100,pattern:/chest pain|pressure in (my )?chest|cannot breathe|can't breathe|severe shortness of breath|unconscious|not waking|face droop|sudden weakness|seizure|heavy bleeding|suicid(al|e)/i,message:'A potentially life-threatening symptom was mentioned.'},
  {level:'URGENT',score:75,pattern:/difficulty breathing|shortness of breath|faint(ed|ing)?|severe pain|high fever|vomit(ing)? blood|black stool|sudden vision loss/i,message:'A symptom requiring prompt clinical assessment was mentioned.'},

@@ -1,7 +1,10 @@
 import { strict as assert } from 'node:assert';
-import { assessUrgency } from '../lib/triage';
+import { assessUrgency, normalizeSymptomText } from '../lib/triage';
 assert.equal(assessUrgency('I have a headache').urgency,'ROUTINE');
 assert.equal(assessUrgency('worsening pain and a fever').urgency,'SOON');
 assert.equal(assessUrgency('difficulty breathing').urgency,'URGENT');
 assert.equal(assessUrgency('chest pain and cannot breathe').urgency,'EMERGENCY');
+assert.equal(normalizeSymptomText('  CHEST\t pain\n and cannot breathe  '),'chest pain and cannot breathe');
+assert.equal(assessUrgency(normalizeSymptomText('CHEST PAIN')).urgency,'EMERGENCY');
+assert.equal(normalizeSymptomText('headache\u2013light sensitivity'),'headache-light sensitivity');
 console.log('Triage rule smoke tests passed.');
