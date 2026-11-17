@@ -2,6 +2,7 @@ import { SignJWT,jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { NextRequest,NextResponse } from 'next/server';
 import { db,DBRow } from '@/lib/db';
+import { apiError } from '@/lib/http';
 export const SESSION_COOKIE_NAME='mediroute_session';
 const COOKIE=SESSION_COOKIE_NAME;
 function secret(){const value=process.env.AUTH_SECRET;if(!value||value.length<32)throw new Error('AUTH_SECRET must be set to at least 32 characters.');return new TextEncoder().encode(value);}
@@ -16,8 +17,8 @@ export async function getSession(req?:NextRequest):Promise<SessionUser|null>{
   return {userId:Number(payload.userId),name:String(payload.name),email:String(payload.email),role:payload.role as SessionUser['role']};
  }catch{return null;}
 }
-export function unauthorized(){return NextResponse.json({error:'Authentication required.'},{status:401});}
-export function forbidden(){return NextResponse.json({error:'You do not have permission to perform this action.'},{status:403});}
+export function unauthorized(){return apiError('Authentication required.',401,'AUTH_REQUIRED');}
+export function forbidden(){return apiError('You do not have permission to perform this action.',403,'FORBIDDEN');}
 export function clearSessionCookie(response:NextResponse){response.cookies.set(COOKIE,'',{httpOnly:true,secure:process.env.NODE_ENV==='production',sameSite:'lax',path:'/',maxAge:0,expires:new Date(0)});return response;}
 
 
