@@ -81,7 +81,7 @@ mysql2 provides pooled MySQL access; Qdrant JS client manages collections and po
 
 ## 5. ER model and relational schema
 
-The schema-aligned ER diagram is maintained in docs/ER_DIAGRAM.md. The user-supplied conceptual ER diagram is mapped to the implemented model as follows:
+The Chen-style ER diagram selected for the submission is maintained in `docs/ER_DIAGRAM.pdf`; the relational schema diagram is in `docs/RELATIONAL_SCHEMA.pdf`. The user-supplied conceptual ER diagram is mapped to the implemented model as follows:
 
 - PATIENT, DOCTOR and ADMIN are roles in the shared users table.
 - SYMPTOM_REPORT is represented by triage_sessions.
@@ -221,7 +221,8 @@ MediRoute demonstrates how a relational database and a vector database can serve
 ## References and repository artefacts
 
 - Source repository: https://github.com/GGO4411/MediRoute
-- ER diagram: docs/ER_DIAGRAM.md
+- ER diagram: `docs/ER_DIAGRAM.pdf`
+- Relational schema diagram: `docs/RELATIONAL_SCHEMA.pdf`
 - Technology justification: docs/TECHNOLOGY_JUSTIFICATION.md
 - SQL examples: db/dml_examples.sql and db/query_showcase.sql
 - Permission matrix: db/database_rbac.sql
