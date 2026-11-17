@@ -58,6 +58,13 @@ MediRoute is a DBMS Level 3 project prototype. Patients describe symptoms in nat
 
    MySQL runs `db/schema.sql` automatically when its data volume is first initialized. Wait until `docker compose ps` shows MySQL as healthy before seeding. If a MySQL volume already exists and you need to reapply the schema, run `npm run db:init` (the initializer understands the `DELIMITER` blocks used for triggers and the stored procedure).
 
+   For an existing database that predates appointment rescheduling, apply both migrations in order after backing up the database. The first adds reschedule permission/history; the second adds integrity guards. The second preserves existing rows and stops if legacy audit, prescription, appointment, or triage links violate the new constraints:
+
+   ```bash
+   mysql -h 127.0.0.1 -u root -p mediroute < db/appointment_rescheduling.sql
+   mysql -h 127.0.0.1 -u root -p mediroute < db/migrations/20261117_appointment_integrity.sql
+   ```
+
 4. Install packages and populate demo records:
 
    ```bash
@@ -92,7 +99,8 @@ Public registration creates PATIENT accounts only. Doctor and administrator acco
 
 ## Database design and DBMS concepts
 
-- `db/schema.sql`: users, specialties, doctors, appointment_slots, triage_sessions, appointments, prescriptions and appointment_audit.
+- `db/schema.sql`: users, permissions, role_permissions, specialties, doctors, appointment_slots, triage_sessions, appointments, prescriptions, appointment_audit and appointment_reschedule_audit.
+- `db/migrations/20261117_appointment_integrity.sql`: adds appointment-audit referential integrity and database triggers for slot moves and prescription ownership consistency. The migration checks legacy rows first and preserves them.
 - `db/migrations.sql`: optional one-time `ALTER TABLE` example adding `preferred_language`; do not run it more than once.
 - `db/ddl_examples.sql`: commented `ALTER`/`DROP` statements for demonstrating schema changes and rollback in a disposable database.
 - Primary keys, foreign keys, unique constraints, CHECK constraints, and secondary indexes enforce consistency and support reads.
@@ -102,6 +110,7 @@ Public registration creates PATIENT accounts only. Doctor and administrator acco
 - `sp_calculate_urgency` is a stored procedure illustrating database-side rule scoring.
 - Triggers verify slot status/doctor ownership and triage ownership, reject emergency-triage bookings, mark slots booked after insertion, release slots on cancellation, prevent reopening closed bookings, and write status-change audit rows.
 - Appointment booking uses an InnoDB transaction and `SELECT ... FOR UPDATE` to serialize concurrent attempts for the same slot. The insert trigger acts as a second database-level check.
+- Appointment status changes lock the appointment row and use a conditional status update in one transaction. Appointment history supports server-side filters and bounded pagination with stable ordering; `PAST` includes completed appointments by slot start time.
 - Qdrant stores embedding vectors and payload metadata (`condition`, `description`, `specialty`, `keywords`, `source`). The payload index on `specialty` supports filtering/metadata operations.
 
 ### Important SQL examples
@@ -197,9 +206,15 @@ Run the deterministic urgency-rule smoke test:
 npm run test:triage
 npm run test:db
 npm run test:vectors
+npm run test:reschedule
+npm run typecheck
+npm run lint
+npm run build
 ```
 
-`test:db` requires the MySQL schema and seed data (`npm run db:init` and `npm run db:seed`). It checks the stored function and procedure, database permission matrix, emergency booking guard, slot booking/duplicate prevention, cancellation, slot reuse and audit trigger. The GitHub Actions workflow runs these checks against disposable MySQL 8.4 and Qdrant services. `test:vectors` requires Qdrant to be running and the sample vector corpus to have been seeded with `npm run vectors:seed`. It checks semantic retrieval and vector create/upsert, read and delete operations.
+`test:db` and `test:reschedule` require the MySQL schema and seed data (`npm run db:init` and `npm run db:seed`); existing databases must also apply the integrity migration above. The rescheduling test calls the actual API route and covers ownership, closed appointments, unavailable slots, successful moves, rollback after an audit-write failure, database integrity guards and concurrent requests. `test:db` checks the stored function and procedure, permission matrix, emergency booking guard, slot booking/duplicate prevention, cancellation, slot reuse and audit trigger. The GitHub Actions workflow runs these checks against disposable MySQL 8.4 and Qdrant services. `test:vectors` requires Qdrant to be running and the sample vector corpus to have been seeded with `npm run vectors:seed`. It checks semantic retrieval and vector create/upsert, read and delete operations.
+
+`npm run typecheck` checks TypeScript without emitting files; `npm run lint` uses the Next.js ESLint configuration; `npm run build` creates a production build.
 
 Manual DB/application checks:
 1. Register a patient; verify the DB contains a bcrypt hash, never the original password.

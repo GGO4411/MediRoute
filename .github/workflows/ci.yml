@@ -43,7 +43,10 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npm run db:init
       - run: npm run db:seed
+      - name: Apply additive appointment integrity migration
+        run: mysql -h "$MYSQL_HOST" -P "$MYSQL_PORT" -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" < db/migrations/20261117_appointment_integrity.sql
       - run: npm run test:db
+      - run: npm run test:reschedule
       - name: Execute SQL DML and query showcases
         run: |
           mysql -h "$MYSQL_HOST" -P "$MYSQL_PORT" -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" < db/dml_examples.sql
@@ -61,4 +64,6 @@ jobs:
           exit 1
       - run: npm run vectors:seed
       - run: npm run test:vectors
+      - run: npm run typecheck
+      - run: npm run lint
       - run: npm run build
