@@ -33,6 +33,7 @@ INSERT IGNORE INTO permissions(permission_code,description) VALUES
  ('APPOINTMENT_READ_ASSIGNED','Read appointments assigned to the doctor'),
  ('APPOINTMENT_READ_ALL','Read all appointments as administrator'),
  ('APPOINTMENT_CANCEL_OWN','Cancel the current patient active appointment'),
+ ('APPOINTMENT_RESCHEDULE_OWN','Reschedule the current patient active appointment'),
  ('APPOINTMENT_COMPLETE_ASSIGNED','Complete or mark no-show for an assigned appointment'),
  ('APPOINTMENT_MANAGE_ALL','Confirm, cancel or mark no-show for any appointment'),
  ('SLOT_MANAGE_OWN','Manage the current doctor availability'),
@@ -48,7 +49,7 @@ INSERT IGNORE INTO permissions(permission_code,description) VALUES
 INSERT IGNORE INTO role_permissions(role_code,permission_code) VALUES
  ('PATIENT','DOCTOR_READ'),('PATIENT','SLOT_READ'),('PATIENT','TRIAGE_CREATE'),
  ('PATIENT','APPOINTMENT_BOOK'),('PATIENT','APPOINTMENT_READ_OWN'),
- ('PATIENT','APPOINTMENT_CANCEL_OWN'),('PATIENT','PRESCRIPTION_READ_OWN'),
+ ('PATIENT','APPOINTMENT_CANCEL_OWN'),('PATIENT','APPOINTMENT_RESCHEDULE_OWN'),('PATIENT','PRESCRIPTION_READ_OWN'),
  ('DOCTOR','APPOINTMENT_READ_ASSIGNED'),('DOCTOR','APPOINTMENT_COMPLETE_ASSIGNED'),
  ('DOCTOR','SLOT_MANAGE_OWN'),('DOCTOR','PRESCRIPTION_READ_ASSIGNED'),
  ('DOCTOR','PRESCRIPTION_CREATE_ASSIGNED'),
@@ -117,7 +118,22 @@ CREATE TABLE IF NOT EXISTS prescriptions (
 CREATE TABLE IF NOT EXISTS appointment_audit (
  audit_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, appointment_id BIGINT UNSIGNED NOT NULL,
  action VARCHAR(30) NOT NULL, old_status VARCHAR(20), new_status VARCHAR(20),
+ CONSTRAINT fk_appointment_audit_appointment FOREIGN KEY(appointment_id) REFERENCES appointments(appointment_id),
  changed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX idx_audit_appointment(appointment_id,changed_at)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS appointment_reschedule_audit (
+ reschedule_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ appointment_id BIGINT UNSIGNED NOT NULL,
+ old_slot_id BIGINT UNSIGNED NOT NULL,
+ new_slot_id BIGINT UNSIGNED NOT NULL,
+ changed_by BIGINT UNSIGNED NOT NULL,
+ changed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ CONSTRAINT fk_reschedule_appointment FOREIGN KEY(appointment_id) REFERENCES appointments(appointment_id),
+ CONSTRAINT fk_reschedule_old_slot FOREIGN KEY(old_slot_id) REFERENCES appointment_slots(slot_id),
+ CONSTRAINT fk_reschedule_new_slot FOREIGN KEY(new_slot_id) REFERENCES appointment_slots(slot_id),
+ CONSTRAINT fk_reschedule_user FOREIGN KEY(changed_by) REFERENCES users(user_id),
+ INDEX idx_reschedule_appointment(appointment_id,changed_at)
 ) ENGINE=InnoDB;
 
 DELIMITER $$
@@ -154,6 +170,20 @@ END$$
 CREATE TRIGGER IF NOT EXISTS trg_appointment_before_update
 BEFORE UPDATE ON appointments FOR EACH ROW
 BEGIN
+ DECLARE triage_patient BIGINT UNSIGNED; DECLARE triage_urgency VARCHAR(20);
+ IF NEW.triage_id IS NOT NULL THEN
+  SET triage_patient=NULL; SET triage_urgency=NULL;
+  SELECT patient_id,urgency INTO triage_patient,triage_urgency FROM triage_sessions WHERE triage_id=NEW.triage_id FOR UPDATE;
+  IF triage_patient IS NULL OR triage_patient<>NEW.patient_id THEN
+   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Triage session does not belong to this patient';
+  END IF;
+  IF triage_urgency='EMERGENCY' THEN
+   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Emergency triage sessions cannot be booked online';
+  END IF;
+ END IF;
+ IF OLD.doctor_id<>NEW.doctor_id THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='An appointment cannot be reassigned to a different doctor';
+ END IF;
  IF OLD.status IN ('CANCELLED','COMPLETED','NO_SHOW') AND NEW.status<>OLD.status THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Closed appointments cannot be reopened';
  END IF;
@@ -162,6 +192,42 @@ BEGIN
  END IF;
  IF OLD.status='CONFIRMED' AND NEW.status NOT IN ('CONFIRMED','COMPLETED','CANCELLED','NO_SHOW') THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Invalid transition from CONFIRMED';
+ END IF;
+END$$
+
+CREATE TRIGGER IF NOT EXISTS trg_appointment_slot_before_update
+BEFORE UPDATE ON appointments FOR EACH ROW
+BEGIN
+ DECLARE target_status VARCHAR(20); DECLARE target_doctor BIGINT UNSIGNED; DECLARE source_status VARCHAR(20);
+ IF OLD.slot_id<>NEW.slot_id THEN
+  SET target_status=NULL; SET target_doctor=NULL; SET source_status=NULL;
+  SELECT status,doctor_id INTO target_status,target_doctor FROM appointment_slots WHERE slot_id=NEW.slot_id FOR UPDATE;
+  SELECT status INTO source_status FROM appointment_slots WHERE slot_id=OLD.slot_id FOR UPDATE;
+  IF target_status IS NULL OR target_status<>'BOOKED' OR target_doctor<>NEW.doctor_id OR source_status<>'AVAILABLE' THEN
+   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Appointment slot changes require a booked slot for the same doctor and a released prior slot';
+  END IF;
+ END IF;
+END$$
+
+CREATE TRIGGER IF NOT EXISTS trg_prescription_before_insert
+BEFORE INSERT ON prescriptions FOR EACH ROW
+BEGIN
+ DECLARE appointment_patient BIGINT UNSIGNED; DECLARE appointment_doctor BIGINT UNSIGNED;
+ DECLARE CONTINUE HANDLER FOR NOT FOUND SET appointment_patient=NULL,appointment_doctor=NULL;
+ SELECT patient_id,doctor_id INTO appointment_patient,appointment_doctor FROM appointments WHERE appointment_id=NEW.appointment_id;
+ IF appointment_patient IS NULL OR appointment_patient<>NEW.patient_id OR appointment_doctor<>NEW.doctor_id THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Prescription patient and doctor must match its appointment';
+ END IF;
+END$$
+
+CREATE TRIGGER IF NOT EXISTS trg_prescription_before_update
+BEFORE UPDATE ON prescriptions FOR EACH ROW
+BEGIN
+ DECLARE appointment_patient BIGINT UNSIGNED; DECLARE appointment_doctor BIGINT UNSIGNED;
+ DECLARE CONTINUE HANDLER FOR NOT FOUND SET appointment_patient=NULL,appointment_doctor=NULL;
+ SELECT patient_id,doctor_id INTO appointment_patient,appointment_doctor FROM appointments WHERE appointment_id=NEW.appointment_id;
+ IF appointment_patient IS NULL OR appointment_patient<>NEW.patient_id OR appointment_doctor<>NEW.doctor_id THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Prescription patient and doctor must match its appointment';
  END IF;
 END$$
 

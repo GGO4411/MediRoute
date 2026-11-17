@@ -114,10 +114,21 @@ Derived from the implemented MySQL definitions in `db/schema.sql`.
 | Attribute | Key / Constraint |
 |---|---|
 | `audit_id` | PK |
-| `appointment_id` | NOT NULL; indexed logical reference, **not a foreign key** |
+| `appointment_id` | FK → `APPOINTMENTS(appointment_id)`, NOT NULL |
 | `action` | NOT NULL |
 | `old_status` | Optional |
 | `new_status` | Optional |
+| `changed_at` | NOT NULL, default current timestamp |
+
+## 11. APPOINTMENT_RESCHEDULE_AUDIT
+
+| Attribute | Key / Constraint |
+|---|---|
+| `reschedule_id` | PK |
+| `appointment_id` | FK → `APPOINTMENTS(appointment_id)`, NOT NULL |
+| `old_slot_id` | FK → `APPOINTMENT_SLOTS(slot_id)`, NOT NULL |
+| `new_slot_id` | FK → `APPOINTMENT_SLOTS(slot_id)`, NOT NULL |
+| `changed_by` | FK → `USERS(user_id)`, NOT NULL |
 | `changed_at` | NOT NULL, default current timestamp |
 
 ## Foreign-Key Relationships
@@ -136,6 +147,10 @@ Derived from the implemented MySQL definitions in `db/schema.sql`.
 | `PRESCRIPTIONS` | `appointment_id` | `APPOINTMENTS(appointment_id)` |
 | `PRESCRIPTIONS` | `doctor_id` | `DOCTORS(doctor_id)` |
 | `PRESCRIPTIONS` | `patient_id` | `USERS(user_id)` |
+| `APPOINTMENT_AUDIT` | `appointment_id` | `APPOINTMENTS(appointment_id)` |
+| `APPOINTMENT_RESCHEDULE_AUDIT` | `appointment_id` | `APPOINTMENTS(appointment_id)` |
+| `APPOINTMENT_RESCHEDULE_AUDIT` | `old_slot_id`, `new_slot_id` | `APPOINTMENT_SLOTS(slot_id)` |
+| `APPOINTMENT_RESCHEDULE_AUDIT` | `changed_by` | `USERS(user_id)` |
 
 ## Design Notes
 
@@ -143,5 +158,8 @@ Derived from the implemented MySQL definitions in `db/schema.sql`.
 - `DOCTORS.user_id` is unique, so a user can have at most one doctor profile.
 - A doctor can have multiple appointment slots. A slot can be referenced by historical appointment records after cancellation and release.
 - `APPOINTMENTS.triage_id` is optional.
-- `APPOINTMENT_AUDIT.appointment_id` is indexed but is not constrained by a foreign key in the current SQL schema.
+- Appointment status audit rows are protected by a foreign key, so a parent appointment cannot be deleted while its audit history remains.
+- Prescription triggers require the referenced appointment, patient and doctor to agree. Appointment slot-change triggers require the old slot to be released and the target slot to be booked for the same doctor.
+- `GET /api/appointments` returns stable descending start-time order, supports server-side status/date filters and `page`/`pageSize` pagination. `PAST` includes all appointments whose slot start is at or before UTC now, including completed visits.
+- Existing installations must apply `db/migrations/20261117_appointment_integrity.sql`. It checks for orphan audit rows and mismatched prescriptions before adding the foreign key; it stops without deleting data if either is found.
 - Qdrant is a separate vector database used for semantic symptom search; it is not part of this relational schema.

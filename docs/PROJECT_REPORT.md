@@ -35,6 +35,7 @@ MediRoute addresses this as a database and information-retrieval problem: semant
 6. Demonstrate vector create/upsert, read/search and delete operations in Qdrant.
 7. Provide separate patient, doctor and administrator workflows.
 8. Demonstrate authorization backed by a role-permission mapping stored in MySQL.
+9. Provide patient appointment history with status and rescheduling events, and safely reschedule an active visit.
 
 ## 3. System architecture
 
@@ -101,7 +102,8 @@ The schema-aligned ER diagram is maintained in docs/ER_DIAGRAM.md. The user-supp
 | triage_sessions | triage_id | patient_id references users; urgency and indexes |
 | appointments | appointment_id | patient_id, doctor_id, slot_id and optional triage_id reference parent rows |
 | prescriptions | prescription_id | appointment_id, doctor_id and patient_id reference parent rows |
-| appointment_audit | audit_id | appointment_id is retained as an audit reference; no declared FK in current schema |
+| appointment_audit | audit_id | appointment_id references appointments with a foreign key |
+| appointment_reschedule_audit | reschedule_id | appointment_id, old/new slot IDs and changed_by reference their source rows |
 
 ## 6. SQL implementation and DBMS concepts
 
@@ -134,11 +136,13 @@ fn_urgency_level maps a numeric score to ROUTINE, SOON, URGENT or EMERGENCY. sp_
 
 ### Triggers
 
-Appointment triggers validate slot status and doctor ownership, validate triage ownership, block booking from an emergency triage session, mark slots BOOKED, release slots following cancellation, reject invalid reopening of closed appointments and write status-change audit entries.
+Appointment triggers validate slot status and doctor ownership, validate triage ownership, block booking from an emergency triage session, mark slots BOOKED, release slots following cancellation, validate slot states during rescheduling, reject invalid reopening of closed appointments and write status-change audit entries. Prescription triggers require the prescription patient and doctor to match its appointment. A foreign key prevents deleting an appointment while its status audit rows remain.
 
 ### Transaction management
 
 Appointment creation uses an InnoDB transaction and locks the selected slot row with SELECT ... FOR UPDATE. A trigger independently checks slot validity before the row is inserted.
+
+Patient rescheduling uses an InnoDB transaction. The API locks the appointment row and both slot rows, checks patient ownership and active/future status, then releases the old slot, reserves the new slot, updates the appointment and writes appointment_reschedule_audit before committing. Any error rolls all changes back. Locking serializes competing requests for a slot; a database trigger verifies that a moved appointment points to a booked slot for the same doctor and that the former slot is released. Status PATCH requests lock the appointment and apply a conditional status update in the same transaction, returning HTTP 409 for invalid or stale transitions. Status events remain in appointment_audit; reschedule events keep old/new slot, actor and timestamp. History has deterministic start-time ordering, server-side filters and bounded pagination; `PAST` includes completed visits according to slot start time.
 
 ## 7. NoSQL/vector model and operations
 
@@ -166,7 +170,7 @@ The optional db/database_roles.sql file illustrates native MySQL roles for a DBA
 
 ## 9. Interface and API modules
 
-- Patient: registration, login, free-text symptom entry, semantic specialist matches, slot selection, booking/cancellation, prescription history.
+- Patient: registration, login, free-text symptom entry, semantic specialist matches, slot selection, booking/cancellation/rescheduling, filtered appointment history with status and reschedule events, prescription history.
 - Doctor: assigned appointment queue, availability management, visit completion and prescription entry.
 - Administrator: doctor creation and intake pause/resume; routing-corpus listing, upsert and deletion.
 - APIs: auth, doctors, slots, triage, appointments, records, admin doctors and admin corpus.
@@ -181,7 +185,9 @@ GitHub Actions runs the project against disposable MySQL 8.4 and Qdrant services
 4. The SQL DML and query showcase files.
 5. Rule-based triage smoke test.
 6. Qdrant seed and semantic retrieval plus create/upsert, read and delete tests.
-7. Next.js production build.
+7. Rescheduling route integration test, TypeScript check, ESLint and Next.js production build.
+
+The `npm run test:reschedule` integration test invokes the actual Next.js rescheduling route. It covers patient ownership, closed appointments, unavailable slots, successful moves, database guardrails, rollback after an audit-write failure and competing requests to reserve one slot. It requires the current schema/migration and seeded doctor records. CI runs it against disposable MySQL; it does not require the Qdrant corpus.
 
 The successful workflow for the latest code at the time of this report is linked from the repository Actions tab. A CI pass confirms the automated checks; a live browser walkthrough is still required for the presentation.
 

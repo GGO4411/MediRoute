@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { getSession,hasPermission } from '@/lib/auth';
 import { db,DBRow } from '@/lib/db';
 import { serverError } from '@/lib/http';
+import { hasMysqlError } from '@/lib/mysql-errors';
+import type { ResultSetHeader } from 'mysql2';
 const querySchema=z.object({doctorId:z.coerce.number().int().positive()});
 const createSchema=z.object({startsAt:z.string().datetime({offset:true}),endsAt:z.string().datetime({offset:true})});
 const mysqlDate=(date:Date)=>date.toISOString().slice(0,19).replace('T',' ');
@@ -49,9 +51,9 @@ export async function POST(req:NextRequest){
    const [overlaps]=await conn.execute<DBRow[]>(`SELECT slot_id FROM appointment_slots
     WHERE doctor_id=? AND status<>'BLOCKED' AND starts_at<? AND ends_at>? FOR UPDATE`,[doctorId,mysqlDate(end),mysqlDate(start)]);
    if(overlaps.length){await conn.rollback();return NextResponse.json({error:'This time overlaps an existing available or booked slot.'},{status:409});}
-   const [r]=await conn.execute<any>('INSERT INTO appointment_slots(doctor_id,starts_at,ends_at,status) VALUES(?,?,? ,\'AVAILABLE\')',[doctorId,mysqlDate(start),mysqlDate(end)]);
+   const [r]=await conn.execute<ResultSetHeader>('INSERT INTO appointment_slots(doctor_id,starts_at,ends_at,status) VALUES(?,?,? ,\'AVAILABLE\')',[doctorId,mysqlDate(start),mysqlDate(end)]);
    await conn.commit();return NextResponse.json({slotId:Number(r.insertId),message:'Availability added.'},{status:201});
-  }catch(e:any){await conn.rollback();if(e?.code==='ER_DUP_ENTRY')return NextResponse.json({error:'A slot already starts at this time.'},{status:409});return serverError(e);}
+  }catch(e:unknown){await conn.rollback();if(hasMysqlError(e,'ER_DUP_ENTRY'))return NextResponse.json({error:'A slot already starts at this time.'},{status:409});return serverError(e);}
   finally{conn.release();}
  }catch(e){return serverError(e);}
 }
@@ -70,7 +72,7 @@ export async function DELETE(req:NextRequest){
    if(!d[0]||Number(d[0].doctor_id)!==Number(slot.doctor_id)){await conn.rollback();return NextResponse.json({error:'You cannot remove another doctor’s slot.'},{status:403});}
   }
   if(slot.status!=='AVAILABLE'){await conn.rollback();return NextResponse.json({error:'Only unused available slots can be removed.'},{status:409});}
-  const [r]=await conn.execute<any>(`DELETE FROM appointment_slots
+  const [r]=await conn.execute<ResultSetHeader>(`DELETE FROM appointment_slots
    WHERE slot_id=? AND status='AVAILABLE' AND starts_at>UTC_TIMESTAMP()
    AND NOT EXISTS(SELECT 1 FROM appointments a WHERE a.slot_id=appointment_slots.slot_id)`,[slotId]);
   if(r.affectedRows!==1){await conn.rollback();return NextResponse.json({error:'This slot is in the past or has appointment history and cannot be removed.'},{status:409});}

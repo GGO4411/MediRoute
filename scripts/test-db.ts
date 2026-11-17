@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import assert from 'node:assert/strict';
-import mysql from 'mysql2/promise';
+import mysql, { type ResultSetHeader, type RowDataPacket } from 'mysql2/promise';
+import { hasMysqlSqlState } from '../lib/mysql-errors';
 
 async function main(){
  const conn=await mysql.createConnection({
@@ -12,23 +13,23 @@ async function main(){
  });
  try{
   await conn.query("CALL sp_calculate_urgency('cannot breathe', @test_score, @test_level)");
-  const [scoreRows]:any=await conn.query('SELECT @test_score AS score,@test_level AS level');
-  const [functionRows]:any=await conn.query('SELECT fn_urgency_level(100) AS emergency_level,fn_urgency_level(45) AS soon_level');
+  const [scoreRows]=await conn.query<RowDataPacket[]>('SELECT @test_score AS score,@test_level AS level');
+  const [functionRows]=await conn.query<RowDataPacket[]>('SELECT fn_urgency_level(100) AS emergency_level,fn_urgency_level(45) AS soon_level');
   assert.equal(functionRows[0].emergency_level,'EMERGENCY','stored function should map score 100 to emergency');
   assert.equal(functionRows[0].soon_level,'SOON','stored function should map score 45 to soon');
-  const [permissionRows]:any=await conn.execute("SELECT COUNT(*) AS n FROM role_permissions WHERE role_code='ADMIN' AND permission_code='ROUTING_MANAGE'");
+  const [permissionRows]=await conn.execute<RowDataPacket[]>("SELECT COUNT(*) AS n FROM role_permissions WHERE role_code='ADMIN' AND permission_code='ROUTING_MANAGE'");
   assert.equal(Number(permissionRows[0].n),1,'database RBAC should grant routing management to ADMIN');
 
   assert.equal(Number(scoreRows[0].score),100,'stored procedure should flag emergency phrase');
   assert.equal(scoreRows[0].level,'EMERGENCY','stored procedure should return emergency level');
 
-  const [patients]:any=await conn.execute('SELECT user_id FROM users WHERE email=? LIMIT 1',['patient@mediroute.local']);
-  const [doctors]:any=await conn.execute("SELECT doctor_id FROM doctors ORDER BY doctor_id LIMIT 1");
-  const [slots]:any=await conn.execute("SELECT slot_id,doctor_id FROM appointment_slots WHERE status='AVAILABLE' AND starts_at>UTC_TIMESTAMP() ORDER BY starts_at LIMIT 1");
+  const [patients]=await conn.execute<RowDataPacket[]>('SELECT user_id FROM users WHERE email=? LIMIT 1',['patient@mediroute.local']);
+  const [doctors]=await conn.execute<RowDataPacket[]>("SELECT doctor_id FROM doctors ORDER BY doctor_id LIMIT 1");
+  const [slots]=await conn.execute<RowDataPacket[]>("SELECT slot_id,doctor_id FROM appointment_slots WHERE status='AVAILABLE' AND starts_at>UTC_TIMESTAMP() ORDER BY starts_at LIMIT 1");
   assert.ok(patients[0]&&doctors[0]&&slots[0],'seed data must include a patient, doctor and future slot');
   const patientId=Number(patients[0].user_id),doctorId=Number(slots[0].doctor_id),slotId=Number(slots[0].slot_id);
 
-  const [emergencyInsert]:any=await conn.execute(
+  const [emergencyInsert]=await conn.execute<ResultSetHeader>(
    "INSERT INTO triage_sessions(patient_id,symptom_text,urgency,urgency_score) VALUES(?,?,'EMERGENCY',100)",
    [patientId,'cannot breathe']
   );
@@ -39,20 +40,20 @@ async function main(){
     "INSERT INTO appointments(patient_id,doctor_id,slot_id,triage_id,urgency) VALUES(?,?,?,?,'EMERGENCY')",
     [patientId,doctorId,slotId,emergencyTriageId]
    );
-  }catch(error:any){emergencyBookingBlocked=error?.sqlState==='45000';}
+  }catch(error:unknown){emergencyBookingBlocked=hasMysqlSqlState(error,'45000');}
   assert.ok(emergencyBookingBlocked,'database trigger should reject booking from an emergency triage session');
 
-  const [routineInsert]:any=await conn.execute(
+  const [routineInsert]=await conn.execute<ResultSetHeader>(
    "INSERT INTO triage_sessions(patient_id,symptom_text,urgency,urgency_score) VALUES(?,?,'ROUTINE',15)",
    [patientId,'mild non-urgent concern for integration test']
   );
   const routineTriageId=Number(routineInsert.insertId);
-  const [booking]:any=await conn.execute(
+  const [booking]=await conn.execute<ResultSetHeader>(
    "INSERT INTO appointments(patient_id,doctor_id,slot_id,triage_id,urgency) VALUES(?,?,?,?,'ROUTINE')",
    [patientId,doctorId,slotId,routineTriageId]
   );
   const appointmentId=Number(booking.insertId);
-  const [bookedRows]:any=await conn.execute('SELECT status FROM appointment_slots WHERE slot_id=?',[slotId]);
+  const [bookedRows]=await conn.execute<RowDataPacket[]>('SELECT status FROM appointment_slots WHERE slot_id=?',[slotId]);
   assert.equal(bookedRows[0].status,'BOOKED','appointment insert trigger should mark slot BOOKED');
 
   let duplicateBlocked=false;
@@ -61,18 +62,18 @@ async function main(){
     "INSERT INTO appointments(patient_id,doctor_id,slot_id,triage_id,urgency) VALUES(?,?,?,?,'ROUTINE')",
     [patientId,doctorId,slotId,routineTriageId]
    );
-  }catch(error:any){duplicateBlocked=error?.sqlState==='45000';}
+  }catch(error:unknown){duplicateBlocked=hasMysqlSqlState(error,'45000');}
   assert.ok(duplicateBlocked,'trigger should reject a second booking for the same slot');
 
   await conn.execute("UPDATE appointments SET status='CANCELLED' WHERE appointment_id=?",[appointmentId]);
-  const [releasedRows]:any=await conn.execute('SELECT status FROM appointment_slots WHERE slot_id=?',[slotId]);
+  const [releasedRows]=await conn.execute<RowDataPacket[]>('SELECT status FROM appointment_slots WHERE slot_id=?',[slotId]);
   assert.equal(releasedRows[0].status,'AVAILABLE','cancellation trigger should release the slot');
 
   await conn.execute(
    "INSERT INTO appointments(patient_id,doctor_id,slot_id,triage_id,urgency) VALUES(?,?,?,?,'ROUTINE')",
    [patientId,doctorId,slotId,routineTriageId]
   );
-  const [auditRows]:any=await conn.execute("SELECT COUNT(*) AS count FROM appointment_audit WHERE appointment_id=?",[appointmentId]);
+  const [auditRows]=await conn.execute<RowDataPacket[]>("SELECT COUNT(*) AS count FROM appointment_audit WHERE appointment_id=?",[appointmentId]);
   assert.ok(Number(auditRows[0].count)>=2,'appointment triggers should write audit entries');
   console.log('MySQL integration checks passed: procedure, emergency guard, booking, duplicate prevention, cancellation, slot reuse and audit trail.');
  }finally{

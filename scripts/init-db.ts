@@ -4,7 +4,7 @@ import path from 'node:path';
 import mysql from 'mysql2/promise';
 
 function splitSqlStatements(source:string):string[]{
- let delimiter=';',buffer='',statements:string[]=[];
+ let delimiter=';',buffer='';const statements:string[]=[];
  for(const line of source.split(/\r?\n/)){
   const directive=line.trim().match(/^DELIMITER\s+(\S+)$/i);
   if(directive){delimiter=directive[1];continue;}
