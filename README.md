@@ -105,7 +105,9 @@ Public registration creates PATIENT accounts only. Doctor and administrator acco
 - `db/ddl_examples.sql`: commented `ALTER`/`DROP` statements for demonstrating schema changes and rollback in a disposable database.
 - Primary keys, foreign keys, unique constraints, CHECK constraints, and secondary indexes enforce consistency and support reads.
 - The permissions and role_permissions tables store the database-backed authorization matrix. Protected API handlers resolve the live user's database role to permission codes before sensitive operations.
-- See docs/ER_DIAGRAM.md, db/dml_examples.sql, db/query_showcase.sql and db/database_rbac.sql for the demo artefacts.
+- ER diagram (Chen notation): `docs/ER_DIAGRAM.pdf`.
+- Relational schema diagram: `docs/RELATIONAL_SCHEMA.pdf`.
+- SQL demo artefacts: `db/dml_examples.sql`, `db/query_showcase.sql` and `db/database_rbac.sql`.
 - `v_doctor_directory` and `v_appointment_details` encapsulate common joins.
 - `sp_calculate_urgency` is a stored procedure illustrating database-side rule scoring.
 - Triggers verify slot status/doctor ownership and triage ownership, reject emergency-triage bookings, mark slots booked after insertion, release slots on cancellation, prevent reopening closed bookings, and write status-change audit rows.
@@ -172,7 +174,8 @@ for every HTTP request.
 
 - Project report: docs/PROJECT_REPORT.md
 - Deliverable traceability checklist: docs/DELIVERABLE_TRACEABILITY.md
-- Schema-aligned ER diagram: docs/ER_DIAGRAM.md
+- ER diagram (PDF): `docs/ER_DIAGRAM.pdf`
+- Relational schema (PDF): `docs/RELATIONAL_SCHEMA.pdf`
 - Technology justification: docs/TECHNOLOGY_JUSTIFICATION.md
 - Viva and walkthrough guide: docs/DEMO_GUIDE.md
 
@@ -252,4 +255,4 @@ npm run vectors:seed
 - The warning rules are simple text patterns and are not validated for clinical use. A potential emergency result deliberately skips Qdrant specialist matching and online booking; this is a protective demonstration behaviour, not a validated triage guarantee.
 - The seed vector corpus is small, synthetic and for demonstrating semantic retrieval only; it is not an authoritative medical knowledge base.
 - No payments, notifications, interoperability with hospital systems, clinical verification, consent workflow or production-grade deployment controls are included.
-- The formal academic report, presentation slides, deployment screenshots and individual-contribution statements still need to be prepared by the team. The repository includes a schema-accurate ER diagram, SQL showcase and technical/demo notes.
+- The formal academic report, presentation slides, deployment screenshots and individual-contribution statements still need to be prepared by the team. The repository includes ER and relational-schema diagrams, SQL showcase files and technical/demo notes.
