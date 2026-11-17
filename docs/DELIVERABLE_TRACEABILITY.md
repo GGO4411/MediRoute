@@ -2,8 +2,8 @@
 
 | Required deliverable | Repository evidence | How to demonstrate |
 |---|---|---|
-| ER diagram | docs/ER_DIAGRAM.md | Open the Mermaid ER diagram; discuss why user roles share users and why slots are a separate table. |
-| Relational schema, keys, relationships, constraints | db/schema.sql | Show SHOW CREATE TABLE for doctors, appointment_slots, appointments and prescriptions. |
+| ER diagram | `docs/ER_DIAGRAM.pdf` | Open the supplied Chen-notation diagram; explain entities, attributes, relationships and cardinalities. |
+| Relational schema, keys, relationships, constraints | `docs/RELATIONAL_SCHEMA.pdf`, `db/schema.sql` | Show the relation boxes and key mappings, then verify physical constraints with `SHOW CREATE TABLE`. |
 | SQL DDL with constraints | db/schema.sql | Show primary/foreign keys, UNIQUE, CHECK and indexes. |
 | NoSQL/vector database | lib/vector.ts, scripts/seed-vectors.ts, docker-compose.yml | Show the Qdrant collection, 384D vector configuration and payload schema. |
 | Technology justification | docs/TECHNOLOGY_JUSTIFICATION.md | Explain what belongs in MySQL vs Qdrant and why. |
