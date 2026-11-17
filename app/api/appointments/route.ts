@@ -7,18 +7,38 @@ import { hasMysqlError,hasMysqlSqlState } from '@/lib/mysql-errors';
 import type { ResultSetHeader } from 'mysql2';
 const schema=z.object({slotId:z.number().int().positive(),triageId:z.number().int().positive().optional(),reason:z.string().max(1500).optional()});
 const finalStates=['CANCELLED','COMPLETED','NO_SHOW'];
+const dateOnlySchema=z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((value)=>{
+ const date=new Date(`${value}T00:00:00.000Z`);
+ return !Number.isNaN(date.getTime())&&date.toISOString().slice(0,10)===value;
+},{message:'Use a valid calendar date in YYYY-MM-DD format.'});
+const appointmentFilterSchema=z.object({
+ filter:z.enum(['ALL','UPCOMING','PAST','BOOKED','CONFIRMED','COMPLETED','CANCELLED','NO_SHOW']).optional(),
+ status:z.enum(['ALL','UPCOMING','PAST','BOOKED','CONFIRMED','COMPLETED','CANCELLED','NO_SHOW']).optional(),
+ doctorId:z.coerce.number().int().positive().optional(),
+ dateFrom:dateOnlySchema.optional(),
+ dateTo:dateOnlySchema.optional()
+}).refine(v=>!v.dateFrom||!v.dateTo||v.dateFrom<=v.dateTo,{path:['dateTo'],message:'End date must be on or after start date.'});
 export async function GET(req:NextRequest){
  try{
   const user=await getSession(req);if(!user)return NextResponse.json({error:'Authentication required.'},{status:401});
   const page=Number(req.nextUrl.searchParams.get('page')||1),pageSize=Number(req.nextUrl.searchParams.get('pageSize')||100);
   if(!Number.isSafeInteger(page)||page<1||!Number.isSafeInteger(pageSize)||pageSize<1||pageSize>100||(page-1)*pageSize>Number.MAX_SAFE_INTEGER)return NextResponse.json({error:'Page must be positive and pageSize must be between 1 and 100.'},{status:400});
-  const filter=req.nextUrl.searchParams.get('filter')||req.nextUrl.searchParams.get('status')||'ALL';
-  const validFilters=['ALL','UPCOMING','PAST','BOOKED','CONFIRMED','COMPLETED','CANCELLED','NO_SHOW'];
-  if(!validFilters.includes(filter))return NextResponse.json({error:'Invalid appointment filter.'},{status:400});
+  const params=Object.fromEntries(req.nextUrl.searchParams.entries());
+  const parsed=appointmentFilterSchema.safeParse(params);if(!parsed.success)return validationError(parsed.error,'Invalid appointment filters.');
+  const filter=parsed.data.filter||parsed.data.status||'ALL';
   const conditions:string[]=[];const args:(string|number)[]=[];
   if(user.role==='PATIENT'){if(!(await hasPermission(user.userId,'APPOINTMENT_READ_OWN')))return NextResponse.json({error:'Database permission denied.'},{status:403});conditions.push('patient_id=?');args.push(user.userId);}
   else if(user.role==='DOCTOR'){if(!(await hasPermission(user.userId,'APPOINTMENT_READ_ASSIGNED')))return NextResponse.json({error:'Database permission denied.'},{status:403});const [d]=await db().execute<DBRow[]>('SELECT doctor_id FROM doctors WHERE user_id=?',[user.userId]);if(!d[0])return NextResponse.json({appointments:[],pagination:{page,pageSize,total:0,hasMore:false}});conditions.push('doctor_id=?');args.push(Number(d[0].doctor_id));}
   else if(user.role==='ADMIN'&&!(await hasPermission(user.userId,'APPOINTMENT_READ_ALL')))return NextResponse.json({error:'Database permission denied.'},{status:403});
+  if(parsed.data.doctorId!==undefined){
+   if(user.role==='DOCTOR'){
+    const [doctorRows]=await db().execute<DBRow[]>('SELECT doctor_id FROM doctors WHERE user_id=?',[user.userId]);
+    if(!doctorRows[0]||Number(doctorRows[0].doctor_id)!==parsed.data.doctorId)return NextResponse.json({error:'You may only filter appointments assigned to you.'},{status:403});
+   }
+   conditions.push('doctor_id=?');args.push(parsed.data.doctorId);
+  }
+  if(parsed.data.dateFrom){conditions.push('starts_at>=?');args.push(`${parsed.data.dateFrom} 00:00:00`);}
+  if(parsed.data.dateTo){conditions.push('starts_at<DATE_ADD(?, INTERVAL 1 DAY)');args.push(`${parsed.data.dateTo} 00:00:00`);}
   if(filter==='UPCOMING')conditions.push("status IN ('BOOKED','CONFIRMED') AND starts_at>UTC_TIMESTAMP()");
   else if(filter==='PAST')conditions.push('starts_at<=UTC_TIMESTAMP()');
   else if(filter!=='ALL'){conditions.push('status=?');args.push(filter);}

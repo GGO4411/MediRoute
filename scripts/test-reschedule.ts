@@ -13,7 +13,7 @@ process.env.AUTH_SECRET=secret;
 const jwtKey=new TextEncoder().encode(secret);
 type Actor={userId:number;name:string;email:string;role:'PATIENT'};
 type HistoryEvent={action:string;changed_at:string;old_starts_at?:string|null;new_starts_at?:string|null};
-type HistoryAppointment={appointment_id:number;status:string;history:HistoryEvent[]};
+type HistoryAppointment={appointment_id:number;status:string;starts_at:string;doctor_id:number;history:HistoryEvent[]};
 const actor=(userId:number,name:string):Actor=>({userId,name,email:`reschedule-${userId}@mediroute.local`,role:'PATIENT'});
 async function requestMove(who:Actor,appointmentId:number,slotId:number){
  const token=await new SignJWT({...who}).setProtectedHeader({alg:'HS256'}).setIssuedAt().setExpirationTime('5m').sign(jwtKey);
@@ -101,6 +101,22 @@ async function main(){
   const pastResponse=await requestHistory(users[1],'filter=PAST&page=1&pageSize=100');
   const pastData=await pastResponse.json() as {appointments:HistoryAppointment[]};
   assert.ok(pastData.appointments.some((a)=>Number(a.appointment_id)===ownedByOtherId&&a.status==='COMPLETED'),'Past filter includes completed appointments whose slot time is past');
+  const pastDate=new Date(Date.now()-2*86400000).toISOString().slice(0,10);
+  const filteredResponse=await requestHistory(users[1],`filter=ALL&doctorId=${Number(doctor.doctor_id)}&dateFrom=${pastDate}&dateTo=${pastDate}`);
+  assert.equal(filteredResponse.status,200,'doctor and inclusive date filters are accepted');
+  const filteredData=await filteredResponse.json() as {appointments:HistoryAppointment[]};
+  assert.ok(filteredData.appointments.some((a)=>Number(a.appointment_id)===ownedByOtherId),'date range includes appointments on both inclusive boundary dates');
+  assert.ok(filteredData.appointments.every((a)=>Number(a.doctor_id)===Number(doctor.doctor_id)),'doctor filter only returns matching appointments');
+  const invalidDateResponse=await requestHistory(users[1],'dateFrom=2026-02-30');
+  assert.equal(invalidDateResponse.status,400,'impossible calendar dates are rejected');
+  const reversedRangeResponse=await requestHistory(users[1],'dateFrom=2026-11-18&dateTo=2026-11-17');
+  assert.equal(reversedRangeResponse.status,400,'a reversed date range is rejected');
+  const pageTwoResponse=await requestHistory(users[0],'filter=ALL&page=2&pageSize=1');
+  const pageTwo=await pageTwoResponse.json() as {appointments:HistoryAppointment[];pagination:{hasMore:boolean}};
+  assert.equal(pageTwoResponse.status,200);
+  assert.notEqual(Number(pageTwo.appointments[0]?.appointment_id),successId,'a later page advances past the first appointment');
+  assert.ok(pageTwo.appointments[0]?.starts_at<=fullHistory.appointments[0]?.starts_at,'history pages use the same descending start-time ordering');
+  assert.equal(pageTwo.pagination.hasMore,true,'hasMore remains true when an additional page exists');
 
   let slotGuarded=false;
   try{await conn.execute('UPDATE appointments SET slot_id=? WHERE appointment_id=?',[slotIds[9],successId]);}catch(error:unknown){slotGuarded=hasMysqlSqlState(error,'45000');}
