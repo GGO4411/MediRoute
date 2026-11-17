@@ -91,6 +91,7 @@ async function main(){
   const fullHistory=await fullHistoryResponse.json();
   const movedHistory=fullHistory.appointments.find((a:any)=>Number(a.appointment_id)===successId);
   assert.ok(movedHistory?.history.some((event:any)=>event.action==='RESCHEDULED'),'history API returns reschedule events');
+  await conn.execute("UPDATE appointments SET status='CONFIRMED' WHERE appointment_id=?",[ownedByOtherId]);
   await conn.execute("UPDATE appointments SET status='COMPLETED' WHERE appointment_id=?",[ownedByOtherId]);
   await conn.execute('UPDATE appointment_slots SET starts_at=?,ends_at=? WHERE slot_id=?',[mysqlDate(new Date(Date.now()-2*86400000)),mysqlDate(new Date(Date.now()-2*86400000+1800000)),slotIds[1]]);
   const pastResponse=await requestHistory(users[1],'filter=PAST&page=1&pageSize=100');
