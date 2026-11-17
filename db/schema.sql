@@ -10,6 +10,15 @@ CREATE TABLE IF NOT EXISTS users (
  INDEX idx_users_role(role)
  ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS login_rate_limits (
+ identifier_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,
+ window_started_at DATETIME NOT NULL,
+ failed_attempts SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+ blocked_until DATETIME NULL,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ INDEX idx_login_rate_limits_updated(updated_at)
+) ENGINE=InnoDB;
+
 CREATE TABLE IF NOT EXISTS permissions (
  permission_code VARCHAR(60) PRIMARY KEY,
  description VARCHAR(255) NOT NULL

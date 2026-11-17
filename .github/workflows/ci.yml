@@ -44,6 +44,8 @@ jobs:
       - run: npm run test:password
       - run: npm run db:init
       - run: npm run db:seed
+      - name: Apply additive login rate limit migration
+        run: mysql -h "$MYSQL_HOST" -P "$MYSQL_PORT" -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" < db/migrations/20261117_login_rate_limits.sql
       - name: Allow trusted trigger creators for CI migration
         run: mysql -h "$MYSQL_HOST" -P "$MYSQL_PORT" -u root -p"$MYSQL_ROOT_PASSWORD" -e "SET GLOBAL log_bin_trust_function_creators = 1;"
       - name: Apply additive appointment integrity migration
