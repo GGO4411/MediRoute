@@ -5,6 +5,7 @@ import { SignJWT } from 'jose';
 import { NextRequest } from 'next/server';
 import { POST as rescheduleAppointment } from '../app/api/appointments/[appointmentId]/reschedule/route';
 import { GET as readAppointments, PATCH as updateAppointmentStatus } from '../app/api/appointments/route';
+import { db } from '../lib/db';
 
 const secret=process.env.AUTH_SECRET||'local-reschedule-test-secret-at-least-32-characters';
 process.env.AUTH_SECRET=secret;
@@ -140,6 +141,7 @@ async function main(){
    await conn.commit();
   }catch(error){await conn.rollback();throw error;}
   await conn.end();
+  await db().end();
  }
 }
 main().catch(error=>{console.error(error);process.exit(1);});
