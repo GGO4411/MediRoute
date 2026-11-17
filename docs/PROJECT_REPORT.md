@@ -6,9 +6,8 @@
 **Project:** MediRoute  
 **Database technologies:** MySQL 8.4 and Qdrant  
 **Application:** Next.js 16, React 19 and TypeScript  
-**Team members:** [Insert names and identifiers]  
-**Faculty / section:** [Insert details]  
-**Demo date:** [Insert scheduled date]
+**Team members:** Ganhar, Hardhick 
+**Section:** 5C
 
 ---
 
