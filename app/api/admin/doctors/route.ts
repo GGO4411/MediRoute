@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { getSession,hasPermission,type SessionUser } from '@/lib/auth';
 import { db,DBRow } from '@/lib/db';
-import { serverError } from '@/lib/http';
+import { readJsonBody,serverError,validationError } from '@/lib/http';
 import { hasMysqlError } from '@/lib/mysql-errors';
 import type { ResultSetHeader } from 'mysql2';
 import { strongPasswordSchema } from '@/lib/password-policy';
@@ -48,8 +48,8 @@ export async function GET(req:NextRequest){
 }
 export async function POST(req:NextRequest){
  const auth=await requireAdmin(req);if(auth.response)return auth.response;
- const parsed=createSchema.safeParse(await req.json());
- if(!parsed.success)return NextResponse.json({error:'Provide valid doctor, login and specialty details.'},{status:400});
+ const body=await readJsonBody(req);if(!body.ok)return body.response;const parsed=createSchema.safeParse(body.value);
+ if(!parsed.success)return validationError(parsed.error,'Provide valid doctor, login and specialty details.');
  const p=parsed.data,conn=await db().getConnection();
  try{
   await conn.beginTransaction();
@@ -69,8 +69,8 @@ export async function POST(req:NextRequest){
 }
 export async function PATCH(req:NextRequest){
  const auth=await requireAdmin(req);if(auth.response)return auth.response;
- const parsed=updateSchema.safeParse(await req.json());
- if(!parsed.success)return NextResponse.json({error:'Provide valid doctor update fields.'},{status:400});
+ const body=await readJsonBody(req);if(!body.ok)return body.response;const parsed=updateSchema.safeParse(body.value);
+ if(!parsed.success)return validationError(parsed.error,'Provide valid doctor update fields.');
  const {doctorId,...fields}=parsed.data;
  if(!Object.keys(fields).length)return NextResponse.json({error:'No update fields supplied.'},{status:400});
  const conn=await db().getConnection();

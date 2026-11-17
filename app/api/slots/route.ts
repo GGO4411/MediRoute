@@ -2,7 +2,7 @@ import { NextRequest,NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSession,hasPermission } from '@/lib/auth';
 import { db,DBRow } from '@/lib/db';
-import { serverError } from '@/lib/http';
+import { readJsonBody,serverError,validationError } from '@/lib/http';
 import { hasMysqlError } from '@/lib/mysql-errors';
 import type { ResultSetHeader } from 'mysql2';
 const querySchema=z.object({doctorId:z.coerce.number().int().positive()});
@@ -28,7 +28,7 @@ export async function GET(req:NextRequest){
    const [rows]=await db().execute<DBRow[]>(sql,args);return NextResponse.json({slots:rows});
   }
   const p=querySchema.safeParse({doctorId:req.nextUrl.searchParams.get('doctorId')});
-  if(!p.success)return NextResponse.json({error:'A valid doctorId is required.'},{status:400});
+  if(!p.success)return validationError(p.error,'A valid doctorId is required.');
   const [rows]=await db().execute<DBRow[]>(`SELECT slot_id AS slotId,starts_at AS startsAt,ends_at AS endsAt
    FROM appointment_slots WHERE doctor_id=? AND status='AVAILABLE' AND starts_at>UTC_TIMESTAMP() ORDER BY starts_at LIMIT 50`,[p.data.doctorId]);
   return NextResponse.json({slots:rows});
@@ -38,7 +38,7 @@ export async function POST(req:NextRequest){
  try{
   const user=await getSession(req);if(!user)return NextResponse.json({error:'Authentication required.'},{status:401});
   if(user.role!=='DOCTOR'||!(await hasPermission(user.userId,'SLOT_MANAGE_OWN')))return NextResponse.json({error:'Your database role cannot create this availability.'},{status:403});
-  const p=createSchema.safeParse(await req.json());if(!p.success)return NextResponse.json({error:'Provide valid ISO start and end timestamps.'},{status:400});
+  const body=await readJsonBody(req);if(!body.ok)return body.response;const p=createSchema.safeParse(body.value);if(!p.success)return validationError(p.error,'Provide valid ISO start and end timestamps.');
   const start=new Date(p.data.startsAt),end=new Date(p.data.endsAt),duration=(end.getTime()-start.getTime())/60000;
   if(!Number.isFinite(duration)||start.getTime()<=Date.now()||duration<15||duration>180||start.getTime()>Date.now()+90*86400000)
    return NextResponse.json({error:'Slots must be in the future, within 90 days, and last 15 to 180 minutes.'},{status:400});

@@ -2,7 +2,7 @@ import { NextRequest,NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSession,hasPermission } from '@/lib/auth';
 import { db,DBRow } from '@/lib/db';
-import { serverError } from '@/lib/http';
+import { readJsonBody,serverError,validationError } from '@/lib/http';
 import type { ResultSetHeader } from 'mysql2';
 
 const schema=z.object({slotId:z.number().int().positive()});
@@ -14,10 +14,9 @@ export async function POST(req:NextRequest,{params}:{params:Promise<{appointment
   return NextResponse.json({error:'Patients with rescheduling permission may change their own appointments.'},{status:403});
  const {appointmentId:rawId}=await params,appointmentId=Number(rawId);
  if(!Number.isSafeInteger(appointmentId)||appointmentId<=0)return NextResponse.json({error:'A valid appointmentId is required.'},{status:400});
- let payload:unknown;
- try{payload=await req.json();}catch{return NextResponse.json({error:'Provide a valid future slot.'},{status:400});}
- const parsed=schema.safeParse(payload);
- if(!parsed.success)return NextResponse.json({error:'Provide a valid future slot.'},{status:400});
+ const body=await readJsonBody(req);if(!body.ok)return body.response;
+ const parsed=schema.safeParse(body.value);
+ if(!parsed.success)return validationError(parsed.error,'Provide a valid future slot.');
  const conn=await db().getConnection();
  try{
   await conn.beginTransaction();

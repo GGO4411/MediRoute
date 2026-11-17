@@ -6,14 +6,14 @@ import { assessUrgency,EMERGENCY_MESSAGE } from '@/lib/triage';
 import type { Urgency } from '@/lib/triage';
 import { searchCorpus } from '@/lib/vector';
 import type { CorpusMatch } from '@/lib/vector';
-import { serverError } from '@/lib/http';
+import { readJsonBody,serverError,validationError } from '@/lib/http';
 import type { ResultSetHeader } from 'mysql2';
 const schema=z.object({symptoms:z.string().trim().min(10).max(3000)});
 export async function POST(req:NextRequest){
  try{
   const user=await getSession(req);if(!user)return NextResponse.json({error:'Sign in to submit symptoms.'},{status:401});
   if(!(await hasPermission(user.userId,'TRIAGE_CREATE')))return NextResponse.json({error:'Your database role does not permit symptom submissions.'},{status:403});
-  const p=schema.safeParse(await req.json());if(!p.success)return NextResponse.json({error:'Describe symptoms in at least 10 characters.'},{status:400});
+  const body=await readJsonBody(req);if(!body.ok)return body.response;const p=schema.safeParse(body.value);if(!p.success)return validationError(p.error,'Describe symptoms in at least 10 characters.');
   const ruleAssessment=assessUrgency(p.data.symptoms);let urgency:Urgency=ruleAssessment.urgency,score=ruleAssessment.score,flags=ruleAssessment.flags;
   let matches:CorpusMatch[]=[];let vectorAvailable=true;let triageId=0;
   // The urgency procedure runs before retrieval. Emergency flags stop specialist routing.

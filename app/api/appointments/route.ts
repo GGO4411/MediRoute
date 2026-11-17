@@ -2,7 +2,7 @@ import { NextRequest,NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSession,hasPermission } from '@/lib/auth';
 import { db,DBRow } from '@/lib/db';
-import { serverError } from '@/lib/http';
+import { readJsonBody,serverError,validationError } from '@/lib/http';
 import { hasMysqlError,hasMysqlSqlState } from '@/lib/mysql-errors';
 import type { ResultSetHeader } from 'mysql2';
 const schema=z.object({slotId:z.number().int().positive(),triageId:z.number().int().positive().optional(),reason:z.string().max(1500).optional()});
@@ -40,7 +40,7 @@ export async function GET(req:NextRequest){
 export async function POST(req:NextRequest){
  const user=await getSession(req);if(!user)return NextResponse.json({error:'Authentication required.'},{status:401});
  if(!(await hasPermission(user.userId,'APPOINTMENT_BOOK')))return NextResponse.json({error:'Your database role cannot book appointments.'},{status:403});
- const p=schema.safeParse(await req.json());if(!p.success)return NextResponse.json({error:'Provide a valid slot.'},{status:400});
+ const body=await readJsonBody(req);if(!body.ok)return body.response;const p=schema.safeParse(body.value);if(!p.success)return validationError(p.error,'Provide a valid slot.');
  const conn=await db().getConnection();
  try{
   await conn.beginTransaction();
@@ -67,8 +67,8 @@ export async function POST(req:NextRequest){
 export async function PATCH(req:NextRequest){
  try{
   const user=await getSession(req);if(!user)return NextResponse.json({error:'Authentication required.'},{status:401});
-  const p=z.object({appointmentId:z.number().int().positive(),status:z.enum(['CONFIRMED','COMPLETED','CANCELLED','NO_SHOW'])}).safeParse(await req.json());
-  if(!p.success)return NextResponse.json({error:'Invalid appointment update.'},{status:400});
+  const body=await readJsonBody(req);if(!body.ok)return body.response;const p=z.object({appointmentId:z.number().int().positive(),status:z.enum(['CONFIRMED','COMPLETED','CANCELLED','NO_SHOW'])}).safeParse(body.value);
+  if(!p.success)return validationError(p.error,'Invalid appointment update.');
   const permission=user.role==='PATIENT'?'APPOINTMENT_CANCEL_OWN':user.role==='DOCTOR'?'APPOINTMENT_COMPLETE_ASSIGNED':user.role==='ADMIN'?'APPOINTMENT_MANAGE_ALL':'';
   if(!permission)return NextResponse.json({error:'Forbidden.'},{status:403});
   if(!(await hasPermission(user.userId,permission)))return NextResponse.json({error:'Database permission denied.'},{status:403});

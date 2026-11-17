@@ -2,7 +2,7 @@ import { NextRequest,NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSession,hasPermission } from '@/lib/auth';
 import { db,DBRow } from '@/lib/db';
-import { serverError } from '@/lib/http';
+import { readJsonBody,serverError,validationError } from '@/lib/http';
 import type { ResultSetHeader } from 'mysql2';
 const schema=z.object({appointmentId:z.number().int().positive(),patientId:z.number().int().positive(),diagnosisNotes:z.string().max(3000).optional(),medicationName:z.string().min(1).max(180),dosage:z.string().max(120).optional(),instructions:z.string().max(2000).optional()});
 export async function GET(req:NextRequest){
@@ -17,7 +17,7 @@ export async function GET(req:NextRequest){
 }
 export async function POST(req:NextRequest){
  try{const user=await getSession(req);if(!user)return NextResponse.json({error:'Authentication required.'},{status:401});const createPermission=user.role==='DOCTOR'?'PRESCRIPTION_CREATE_ASSIGNED':user.role==='ADMIN'?'PRESCRIPTION_CREATE_ALL':'';if(!createPermission||!(await hasPermission(user.userId,createPermission)))return NextResponse.json({error:'Your database role cannot create prescriptions.'},{status:403});
-  const p=schema.safeParse(await req.json());if(!p.success)return NextResponse.json({error:'Invalid prescription details.'},{status:400});
+  const body=await readJsonBody(req);if(!body.ok)return body.response;const p=schema.safeParse(body.value);if(!p.success)return validationError(p.error,'Invalid prescription details.');
   const [rows]=await db().execute<DBRow[]>('SELECT appointment_id,patient_id,doctor_id,status FROM appointments WHERE appointment_id=?',[p.data.appointmentId]);const a=rows[0];
   if(!a||Number(a.patient_id)!==p.data.patientId||a.status!=='COMPLETED')return NextResponse.json({error:'Appointment and patient details do not match.'},{status:400});
   if(user.role==='DOCTOR'){const [d]=await db().execute<DBRow[]>('SELECT doctor_id FROM doctors WHERE user_id=?',[user.userId]);if(!d[0]||Number(d[0].doctor_id)!==Number(a.doctor_id))return NextResponse.json({error:'You cannot prescribe for another doctor’s appointment.'},{status:403});}

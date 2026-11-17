@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { getSession,hasPermission } from '@/lib/auth';
 import { ensureCollection,qdrant,COLLECTION,pointId } from '@/lib/vector';
 import { embed } from '@/lib/embeddings';
-import { serverError } from '@/lib/http';
+import { readJsonBody,serverError,validationError } from '@/lib/http';
 
 const schema=z.object({
  id:z.string().min(2).max(100),
@@ -34,8 +34,8 @@ export async function GET(req:NextRequest){
 export async function POST(req:NextRequest){
  try{
   const auth=await authorize(req);if(auth.response)return auth.response;
-  const p=schema.safeParse(await req.json());
-  if(!p.success)return NextResponse.json({error:'Invalid corpus entry.'},{status:400});
+  const body=await readJsonBody(req);if(!body.ok)return body.response;const p=schema.safeParse(body.value);
+  if(!p.success)return validationError(p.error,'Invalid corpus entry.');
   await ensureCollection();
   const vector=await embed(p.data.condition+'. '+p.data.description+'. Symptoms: '+p.data.keywords.join(', '));
   await qdrant().upsert(COLLECTION,{wait:true,points:[{id:pointId(p.data.id),vector,payload:{...p.data,source:'admin-curated'}}]});
