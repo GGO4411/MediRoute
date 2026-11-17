@@ -18,7 +18,7 @@
    confirmed appointment and create a prescription.
 7. Sign in as admin. Create or pause a doctor; create, update and delete a
    routing-corpus entry. Explain how Qdrant stores vectors and metadata.
-8. Show the ER diagram, relational schema, permission matrix, SQL showcase,
+8. Show `docs/ER_DIAGRAM.pdf`, `docs/RELATIONAL_SCHEMA.pdf`, the permission matrix, SQL showcase,
    stored function, procedure, triggers and audit history.
 9. Finish with limitations and each member's individual contribution.
 
