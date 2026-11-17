@@ -14,6 +14,7 @@
     "test:triage": "tsx tests/triage.test.ts",
     "test:password": "tsx tests/password-policy.test.ts",
     "test:session": "tsx tests/session-expiry.test.ts",
+    "test:logout": "tsx tests/logout.test.ts",
     "test:db": "tsx scripts/test-db.ts",
     "test:reschedule": "tsx scripts/test-reschedule.ts",
     "test:vectors": "tsx scripts/test-vectors.ts"
