@@ -42,6 +42,7 @@ jobs:
           node-version: 22
       - run: npm install --no-audit --no-fund
       - run: npm run test:password
+      - run: npm run test:session
       - run: npm run db:init
       - run: npm run db:seed
       - name: Apply additive login rate limit migration

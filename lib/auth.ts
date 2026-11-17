@@ -2,7 +2,8 @@ import { SignJWT,jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { NextRequest,NextResponse } from 'next/server';
 import { db,DBRow } from '@/lib/db';
-const COOKIE='mediroute_session';
+export const SESSION_COOKIE_NAME='mediroute_session';
+const COOKIE=SESSION_COOKIE_NAME;
 function secret(){const value=process.env.AUTH_SECRET;if(!value||value.length<32)throw new Error('AUTH_SECRET must be set to at least 32 characters.');return new TextEncoder().encode(value);}
 export type SessionUser={userId:number;name:string;email:string;role:'PATIENT'|'DOCTOR'|'ADMIN'};
 export async function createSession(user:SessionUser){
@@ -17,6 +18,7 @@ export async function getSession(req?:NextRequest):Promise<SessionUser|null>{
 }
 export function unauthorized(){return NextResponse.json({error:'Authentication required.'},{status:401});}
 export function forbidden(){return NextResponse.json({error:'You do not have permission to perform this action.'},{status:403});}
+export function clearSessionCookie(response:NextResponse){response.cookies.set(COOKIE,'',{httpOnly:true,secure:process.env.NODE_ENV==='production',sameSite:'lax',path:'/',maxAge:0,expires:new Date(0)});return response;}
 
 
 /** Resolve protected-operation permissions from the live MySQL role matrix. */
