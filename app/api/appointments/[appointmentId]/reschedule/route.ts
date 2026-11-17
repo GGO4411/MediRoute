@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getSession,hasPermission } from '@/lib/auth';
 import { db,DBRow } from '@/lib/db';
 import { serverError } from '@/lib/http';
+import type { ResultSetHeader } from 'mysql2';
 
 const schema=z.object({slotId:z.number().int().positive()});
 
@@ -39,11 +40,11 @@ export async function POST(req:NextRequest,{params}:{params:Promise<{appointment
   if(!newSlot||Number(newSlot.doctor_id)!==Number(appointment.doctor_id)||newSlot.status!=='AVAILABLE'||!newSlot.is_future){
    await conn.rollback();return NextResponse.json({error:'Choose an available future slot belonging to the same doctor.'},{status:409});
   }
-  const [update]=await conn.execute<any>(`UPDATE appointment_slots SET status='AVAILABLE' WHERE slot_id=? AND status='BOOKED'`,[oldSlotId]);
+  const [update]=await conn.execute<ResultSetHeader>(`UPDATE appointment_slots SET status='AVAILABLE' WHERE slot_id=? AND status='BOOKED'`,[oldSlotId]);
   if(update.affectedRows!==1)throw new Error('Could not release the current slot.');
-  const [reserve]=await conn.execute<any>(`UPDATE appointment_slots SET status='BOOKED' WHERE slot_id=? AND status='AVAILABLE'`,[newSlotId]);
+  const [reserve]=await conn.execute<ResultSetHeader>(`UPDATE appointment_slots SET status='BOOKED' WHERE slot_id=? AND status='AVAILABLE'`,[newSlotId]);
   if(reserve.affectedRows!==1)throw new Error('The selected slot was taken.');
-  const [move]=await conn.execute<any>(`UPDATE appointments SET slot_id=? WHERE appointment_id=? AND slot_id=? AND status IN ('BOOKED','CONFIRMED')`,[newSlotId,appointmentId,oldSlotId]);
+  const [move]=await conn.execute<ResultSetHeader>(`UPDATE appointments SET slot_id=? WHERE appointment_id=? AND slot_id=? AND status IN ('BOOKED','CONFIRMED')`,[newSlotId,appointmentId,oldSlotId]);
   if(move.affectedRows!==1)throw new Error('Appointment changed while rescheduling.');
   await conn.execute(`INSERT INTO appointment_reschedule_audit(appointment_id,old_slot_id,new_slot_id,changed_by) VALUES(?,?,?,?)`,[appointmentId,oldSlotId,newSlotId,user.userId]);
   await conn.commit();

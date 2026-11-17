@@ -3,29 +3,32 @@ import { z } from 'zod';
 import { getSession,hasPermission } from '@/lib/auth';
 import { db,DBRow } from '@/lib/db';
 import { assessUrgency,EMERGENCY_MESSAGE } from '@/lib/triage';
+import type { Urgency } from '@/lib/triage';
 import { searchCorpus } from '@/lib/vector';
+import type { CorpusMatch } from '@/lib/vector';
 import { serverError } from '@/lib/http';
+import type { ResultSetHeader } from 'mysql2';
 const schema=z.object({symptoms:z.string().trim().min(10).max(3000)});
 export async function POST(req:NextRequest){
  try{
   const user=await getSession(req);if(!user)return NextResponse.json({error:'Sign in to submit symptoms.'},{status:401});
   if(!(await hasPermission(user.userId,'TRIAGE_CREATE')))return NextResponse.json({error:'Your database role does not permit symptom submissions.'},{status:403});
   const p=schema.safeParse(await req.json());if(!p.success)return NextResponse.json({error:'Describe symptoms in at least 10 characters.'},{status:400});
-  const ruleAssessment=assessUrgency(p.data.symptoms);let urgency=ruleAssessment.urgency,score=ruleAssessment.score,flags=ruleAssessment.flags;
-  let matches:any[]=[];let vectorAvailable=true;let triageId=0;
+  const ruleAssessment=assessUrgency(p.data.symptoms);let urgency:Urgency=ruleAssessment.urgency,score=ruleAssessment.score,flags=ruleAssessment.flags;
+  let matches:CorpusMatch[]=[];let vectorAvailable=true;let triageId=0;
   // The urgency procedure runs before retrieval. Emergency flags stop specialist routing.
   const conn=await db().getConnection();
   try{
    await conn.query('CALL sp_calculate_urgency(?, @mediroute_score, @mediroute_level)',[p.data.symptoms]);
-   const [scoreRows]:any=await conn.query('SELECT @mediroute_score AS score, @mediroute_level AS level');
+   const [scoreRows]=await conn.query<DBRow[]>('SELECT @mediroute_score AS score, @mediroute_level AS level');
    if(scoreRows[0]){score=Number(scoreRows[0].score||0);urgency=scoreRows[0].level;if(urgency!=='ROUTINE'&&!flags.length)flags=['A database-side urgency rule matched a warning phrase.'];}
    if(urgency!=='EMERGENCY'){
     try{matches=await searchCorpus(p.data.symptoms,5);}catch(e){console.error('Vector search:',e);vectorAvailable=false;}
    }
-   const [r]=await conn.execute<any>('INSERT INTO triage_sessions(patient_id,symptom_text,urgency,urgency_score,safety_flags,top_matches) VALUES(?,?,?,?,?,?)',[user.userId,p.data.symptoms,urgency,score,JSON.stringify(flags),JSON.stringify(matches)]);
+   const [r]=await conn.execute<ResultSetHeader>('INSERT INTO triage_sessions(patient_id,symptom_text,urgency,urgency_score,safety_flags,top_matches) VALUES(?,?,?,?,?,?)',[user.userId,p.data.symptoms,urgency,score,JSON.stringify(flags),JSON.stringify(matches)]);
    triageId=Number(r.insertId);
   }finally{conn.release();}
-  const specialties=Array.from(new Set(matches.map(m=>String(m.specialty||'')).filter(Boolean)));let doctors:any[]=[];
+  const specialties=Array.from(new Set(matches.map(m=>String(m.specialty||'')).filter(Boolean)));let doctors:DBRow[]=[];
   if(urgency!=='EMERGENCY'&&specialties.length){
    const marks=specialties.map(()=>'?').join(',');
    const [rows]=await db().execute<DBRow[]>(`SELECT doctor_id,doctor_name,specialty,qualification,years_experience,consultation_fee,bio,is_accepting_patients FROM v_doctor_directory WHERE is_accepting_patients=1 AND specialty IN (${marks}) ORDER BY years_experience DESC`,specialties);

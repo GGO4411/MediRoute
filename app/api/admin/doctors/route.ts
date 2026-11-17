@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { getSession,hasPermission,type SessionUser } from '@/lib/auth';
 import { db,DBRow } from '@/lib/db';
 import { serverError } from '@/lib/http';
+import { hasMysqlError } from '@/lib/mysql-errors';
+import type { ResultSetHeader } from 'mysql2';
 
 const createSchema=z.object({
  name:z.string().min(2).max(120),
@@ -51,16 +53,16 @@ export async function POST(req:NextRequest){
  try{
   await conn.beginTransaction();
   const hash=await bcrypt.hash(p.password,12);
-  const [userResult]:any=await conn.execute("INSERT INTO users(full_name,email,password_hash,role) VALUES(?,?,?,'DOCTOR')",[p.name,p.email.toLowerCase(),hash]);
+  const [userResult]=await conn.execute<ResultSetHeader>("INSERT INTO users(full_name,email,password_hash,role) VALUES(?,?,?,'DOCTOR')",[p.name,p.email.toLowerCase(),hash]);
   await conn.execute('INSERT IGNORE INTO specialties(name,description) VALUES(?,?)',[p.specialty, 'Clinical specialty: '+p.specialty]);
   const [specs]=await conn.execute<DBRow[]>('SELECT specialty_id FROM specialties WHERE name=? FOR UPDATE',[p.specialty]);
   if(!specs[0])throw new Error('Unable to create or locate specialty.');
-  const [doctorResult]:any=await conn.execute('INSERT INTO doctors(user_id,specialty_id,qualification,years_experience,consultation_fee,bio) VALUES(?,?,?,?,?,?)',[userResult.insertId,specs[0].specialty_id,p.qualification,p.yearsExperience,p.consultationFee,p.bio||null]);
+  const [doctorResult]=await conn.execute<ResultSetHeader>('INSERT INTO doctors(user_id,specialty_id,qualification,years_experience,consultation_fee,bio) VALUES(?,?,?,?,?,?)',[userResult.insertId,specs[0].specialty_id,p.qualification,p.yearsExperience,p.consultationFee,p.bio||null]);
   await conn.commit();
   return NextResponse.json({doctorId:Number(doctorResult.insertId),message:'Doctor profile created.'},{status:201});
- }catch(e:any){
+ }catch(e:unknown){
   await conn.rollback();
-  if(e?.code==='ER_DUP_ENTRY')return NextResponse.json({error:'A user with this email already exists.'},{status:409});
+  if(hasMysqlError(e,'ER_DUP_ENTRY'))return NextResponse.json({error:'A user with this email already exists.'},{status:409});
   return serverError(e);
  }finally{conn.release();}
 }

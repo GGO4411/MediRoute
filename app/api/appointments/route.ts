@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { getSession,hasPermission } from '@/lib/auth';
 import { db,DBRow } from '@/lib/db';
 import { serverError } from '@/lib/http';
+import { hasMysqlError,hasMysqlSqlState } from '@/lib/mysql-errors';
+import type { ResultSetHeader } from 'mysql2';
 const schema=z.object({slotId:z.number().int().positive(),triageId:z.number().int().positive().optional(),reason:z.string().max(1500).optional()});
 const finalStates=['CANCELLED','COMPLETED','NO_SHOW'];
 export async function GET(req:NextRequest){
@@ -13,7 +15,7 @@ export async function GET(req:NextRequest){
   const filter=req.nextUrl.searchParams.get('filter')||req.nextUrl.searchParams.get('status')||'ALL';
   const validFilters=['ALL','UPCOMING','PAST','BOOKED','CONFIRMED','COMPLETED','CANCELLED','NO_SHOW'];
   if(!validFilters.includes(filter))return NextResponse.json({error:'Invalid appointment filter.'},{status:400});
-  let conditions:string[]=[];let args:(string|number)[]=[];
+  const conditions:string[]=[];const args:(string|number)[]=[];
   if(user.role==='PATIENT'){if(!(await hasPermission(user.userId,'APPOINTMENT_READ_OWN')))return NextResponse.json({error:'Database permission denied.'},{status:403});conditions.push('patient_id=?');args.push(user.userId);}
   else if(user.role==='DOCTOR'){if(!(await hasPermission(user.userId,'APPOINTMENT_READ_ASSIGNED')))return NextResponse.json({error:'Database permission denied.'},{status:403});const [d]=await db().execute<DBRow[]>('SELECT doctor_id FROM doctors WHERE user_id=?',[user.userId]);if(!d[0])return NextResponse.json({appointments:[],pagination:{page,pageSize,total:0,hasMore:false}});conditions.push('doctor_id=?');args.push(Number(d[0].doctor_id));}
   else if(user.role==='ADMIN'&&!(await hasPermission(user.userId,'APPOINTMENT_READ_ALL')))return NextResponse.json({error:'Database permission denied.'},{status:403});
@@ -54,11 +56,11 @@ export async function POST(req:NextRequest){
    urgency=triages[0].urgency;
    if(urgency==='EMERGENCY'){await conn.rollback();return NextResponse.json({error:'This triage was flagged as a possible emergency. Online appointment booking is paused; seek immediate in-person medical help.'},{status:409});}
   }
-  const [r]=await conn.execute<any>('INSERT INTO appointments(patient_id,doctor_id,slot_id,triage_id,urgency,reason) VALUES(?,?,?,?,?,?)',[user.userId,slot.doctor_id,p.data.slotId,p.data.triageId||null,urgency,p.data.reason||null]);
+  const [r]=await conn.execute<ResultSetHeader>('INSERT INTO appointments(patient_id,doctor_id,slot_id,triage_id,urgency,reason) VALUES(?,?,?,?,?,?)',[user.userId,slot.doctor_id,p.data.slotId,p.data.triageId||null,urgency,p.data.reason||null]);
   await conn.commit();return NextResponse.json({appointmentId:Number(r.insertId),message:'Appointment booked successfully.'},{status:201});
- }catch(e:any){
+ }catch(e:unknown){
   await conn.rollback();
-  if(e?.code==='ER_DUP_ENTRY'||e?.sqlState==='45000')return NextResponse.json({error:'The slot is no longer available. Refresh and select another.'},{status:409});
+  if(hasMysqlError(e,'ER_DUP_ENTRY')||hasMysqlSqlState(e,'45000'))return NextResponse.json({error:'The slot is no longer available. Refresh and select another.'},{status:409});
   return serverError(e);
  }finally{conn.release();}
 }
@@ -88,10 +90,10 @@ export async function PATCH(req:NextRequest){
     if(next==='CONFIRMED'&&current!=='BOOKED'){await conn.rollback();return NextResponse.json({error:'Only booked appointments can be confirmed.'},{status:409});}
    }else{await conn.rollback();return NextResponse.json({error:'Forbidden.'},{status:403});}
    if(next==='CANCELLED'&&!['BOOKED','CONFIRMED'].includes(current)){await conn.rollback();return NextResponse.json({error:'Only an active appointment can be cancelled.'},{status:409});}
-   const [update]=await conn.execute<any>('UPDATE appointments SET status=? WHERE appointment_id=? AND status=?',[next,p.data.appointmentId,current]);
+   const [update]=await conn.execute<ResultSetHeader>('UPDATE appointments SET status=? WHERE appointment_id=? AND status=?',[next,p.data.appointmentId,current]);
    if(update.affectedRows!==1){await conn.rollback();return NextResponse.json({error:'Appointment status changed concurrently. Refresh and try again.'},{status:409});}
    await conn.commit();return NextResponse.json({message:'Appointment status updated.'});
-  }catch(e:any){await conn.rollback();if(e?.sqlState==='45000'||e?.code==='ER_LOCK_DEADLOCK'||e?.code==='ER_LOCK_WAIT_TIMEOUT')return NextResponse.json({error:'This appointment status transition conflicts with its current state. Refresh and try again.'},{status:409});return serverError(e);}
+  }catch(e:unknown){await conn.rollback();if(hasMysqlSqlState(e,'45000')||hasMysqlError(e,'ER_LOCK_DEADLOCK')||hasMysqlError(e,'ER_LOCK_WAIT_TIMEOUT'))return NextResponse.json({error:'This appointment status transition conflicts with its current state. Refresh and try again.'},{status:409});return serverError(e);}
   finally{conn.release();}
  }catch(e){return serverError(e);}
 }

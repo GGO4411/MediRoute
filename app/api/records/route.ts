@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getSession,hasPermission } from '@/lib/auth';
 import { db,DBRow } from '@/lib/db';
 import { serverError } from '@/lib/http';
+import type { ResultSetHeader } from 'mysql2';
 const schema=z.object({appointmentId:z.number().int().positive(),patientId:z.number().int().positive(),diagnosisNotes:z.string().max(3000).optional(),medicationName:z.string().min(1).max(180),dosage:z.string().max(120).optional(),instructions:z.string().max(2000).optional()});
 export async function GET(req:NextRequest){
  try{const user=await getSession(req);if(!user)return NextResponse.json({error:'Authentication required.'},{status:401});
@@ -20,7 +21,7 @@ export async function POST(req:NextRequest){
   const [rows]=await db().execute<DBRow[]>('SELECT appointment_id,patient_id,doctor_id,status FROM appointments WHERE appointment_id=?',[p.data.appointmentId]);const a=rows[0];
   if(!a||Number(a.patient_id)!==p.data.patientId||a.status!=='COMPLETED')return NextResponse.json({error:'Appointment and patient details do not match.'},{status:400});
   if(user.role==='DOCTOR'){const [d]=await db().execute<DBRow[]>('SELECT doctor_id FROM doctors WHERE user_id=?',[user.userId]);if(!d[0]||Number(d[0].doctor_id)!==Number(a.doctor_id))return NextResponse.json({error:'You cannot prescribe for another doctor’s appointment.'},{status:403});}
-  const [r]=await db().execute<any>('INSERT INTO prescriptions(appointment_id,doctor_id,patient_id,diagnosis_notes,medication_name,dosage,instructions) VALUES(?,?,?,?,?,?,?)',[p.data.appointmentId,a.doctor_id,p.data.patientId,p.data.diagnosisNotes||null,p.data.medicationName,p.data.dosage||null,p.data.instructions||null]);
+  const [r]=await db().execute<ResultSetHeader>('INSERT INTO prescriptions(appointment_id,doctor_id,patient_id,diagnosis_notes,medication_name,dosage,instructions) VALUES(?,?,?,?,?,?,?)',[p.data.appointmentId,a.doctor_id,p.data.patientId,p.data.diagnosisNotes||null,p.data.medicationName,p.data.dosage||null,p.data.instructions||null]);
   return NextResponse.json({prescriptionId:Number(r.insertId)},{status:201});
  }catch(e){return serverError(e);}
 }
