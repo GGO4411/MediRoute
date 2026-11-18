@@ -6,12 +6,14 @@ import { NextRequest } from 'next/server';
 import { hasMysqlError,hasMysqlSqlState } from '../lib/mysql-errors';
 import { POST as rescheduleAppointment } from '../app/api/appointments/[appointmentId]/reschedule/route';
 import { GET as readAppointments, PATCH as updateAppointmentStatus } from '../app/api/appointments/route';
+import { POST as createAvailability } from '../app/api/slots/route';
 import { db } from '../lib/db';
 
 const secret=process.env.AUTH_SECRET||'local-reschedule-test-secret-at-least-32-characters';
 process.env.AUTH_SECRET=secret;
 const jwtKey=new TextEncoder().encode(secret);
 type Actor={userId:number;name:string;email:string;role:'PATIENT'};
+type DoctorActor={userId:number;name:string;email:string;role:'DOCTOR'};
 type HistoryEvent={action:string;changed_at:string;old_starts_at?:string|null;new_starts_at?:string|null};
 type HistoryAppointment={appointment_id:number;status:string;starts_at:string;doctor_id:number;history:HistoryEvent[]};
 const actor=(userId:number,name:string):Actor=>({userId,name,email:`reschedule-${userId}@mediroute.local`,role:'PATIENT'});
@@ -33,6 +35,10 @@ async function requestHistory(who:Actor,query:string){
  const token=await new SignJWT({...who}).setProtectedHeader({alg:'HS256'}).setIssuedAt().setExpirationTime('5m').sign(jwtKey);
  return readAppointments(new NextRequest(`http://localhost/api/appointments?${query}`,{headers:{cookie:`mediroute_session=${token}`}}));
 }
+async function requestAvailability(who:DoctorActor,startsAt:string,endsAt:string){
+ const token=await new SignJWT({...who}).setProtectedHeader({alg:'HS256'}).setIssuedAt().setExpirationTime('5m').sign(jwtKey);
+ return createAvailability(new NextRequest('http://localhost/api/slots',{method:'POST',headers:{cookie:`mediroute_session=${token}`,'content-type':'application/json'},body:JSON.stringify({startsAt,endsAt})}));
+}
 const mysqlDate=(d:Date)=>d.toISOString().slice(0,19).replace('T',' ');
 
 async function main(){
@@ -40,7 +46,7 @@ async function main(){
  const createdUserIds:number[]=[],slotIds:number[]=[],appointmentIds:number[]=[];
  let failureTriggerCreated=false;
  try{
-  const [[doctor]]=await conn.execute<RowDataPacket[]>('SELECT doctor_id FROM doctors ORDER BY doctor_id LIMIT 1');
+  const [[doctor]]=await conn.execute<RowDataPacket[]>('SELECT d.doctor_id,d.user_id,u.full_name,u.email FROM doctors d JOIN users u ON u.user_id=d.user_id ORDER BY d.doctor_id LIMIT 1');
   assert.ok(doctor,'test requires a seeded doctor');
   const suffix=`${Date.now()}-${Math.floor(Math.random()*100000)}`;
   const users:Actor[]=[];
@@ -51,11 +57,18 @@ async function main(){
   const [grant]=await conn.execute<RowDataPacket[]>('SELECT COUNT(*) AS n FROM role_permissions WHERE role_code=\'PATIENT\' AND permission_code=\'APPOINTMENT_RESCHEDULE_OWN\'');
   assert.equal(Number(grant[0].n),1,'patient role should have the reschedule permission');
   const base=new Date(Date.now()+45*86400000+Math.floor(Math.random()*600)*60000);base.setUTCSeconds(0,0);
+  const doctorUser:DoctorActor={userId:Number(doctor.user_id),name:String(doctor.full_name),email:String(doctor.email),role:'DOCTOR'};
   for(let i=0;i<10;i++){
    const start=new Date(base.getTime()+i*3600000),end=new Date(start.getTime()+30*60000);
    const [result]=await conn.execute<ResultSetHeader>("INSERT INTO appointment_slots(doctor_id,starts_at,ends_at,status) VALUES(?,?,?,'AVAILABLE')",[doctor.doctor_id,mysqlDate(start),mysqlDate(end)]);
    slotIds.push(Number(result.insertId));
   }
+  const adjacentStart=new Date(base.getTime()+30*60000),adjacentEnd=new Date(adjacentStart.getTime()+30*60000);
+  let slotResponse=await requestAvailability(doctorUser,adjacentStart.toISOString(),adjacentEnd.toISOString());
+  assert.equal(slotResponse.status,201,'availability may start exactly when the previous slot ends');
+  const adjacentSlot=await slotResponse.json() as {slotId:number};slotIds.push(adjacentSlot.slotId);
+  slotResponse=await requestAvailability(doctorUser,new Date(adjacentStart.getTime()+15*60000).toISOString(),new Date(adjacentStart.getTime()+45*60000).toISOString());
+  assert.equal(slotResponse.status,409,'the API rejects availability that overlaps an existing slot');
   const appointment=async (patientIndex:number,slotIndex:number)=>{
    const [result]=await conn.execute<ResultSetHeader>("INSERT INTO appointments(patient_id,doctor_id,slot_id,urgency) VALUES(?,?,?,'ROUTINE')",[users[patientIndex].userId,doctor.doctor_id,slotIds[slotIndex]]);
    const id=Number(result.insertId);appointmentIds.push(id);return id;
