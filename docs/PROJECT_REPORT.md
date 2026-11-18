@@ -145,6 +145,8 @@ Appointment creation uses an InnoDB transaction and locks the selected slot row 
 
 Patient rescheduling uses an InnoDB transaction. The API locks the appointment row and both slot rows, checks patient ownership and active/future status, then releases the old slot, reserves the new slot, updates the appointment and writes appointment_reschedule_audit before committing. Any error rolls all changes back. Locking serializes competing requests for a slot; a database trigger verifies that a moved appointment points to a booked slot for the same doctor and that the former slot is released. Status PATCH requests lock the appointment and apply a conditional status update in the same transaction, returning HTTP 409 for invalid or stale transitions. Status events remain in appointment_audit; reschedule events keep old/new slot, actor and timestamp. History has deterministic start-time ordering, server-side filters and bounded pagination; `PAST` includes completed visits according to slot start time.
 
+Cancellation can include an optional reason (up to 500 characters). The API writes it in the same transaction as the status change; the appointment trigger copies it into the status audit, and appointment history displays it.
+
 ## 7. NoSQL/vector model and operations
 
 Qdrant collection: medical_routing_v1 (configurable through environment variables).  

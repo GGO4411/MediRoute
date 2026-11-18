@@ -22,10 +22,10 @@ async function requestMove(who:Actor,appointmentId:number,slotId:number){
  });
  return rescheduleAppointment(request,{params:Promise.resolve({appointmentId:String(appointmentId)})});
 }
-async function requestStatus(who:Actor,appointmentId:number,status:string){
+async function requestStatus(who:Actor,appointmentId:number,status:string,cancellationReason?:string){
  const token=await new SignJWT({...who}).setProtectedHeader({alg:'HS256'}).setIssuedAt().setExpirationTime('5m').sign(jwtKey);
  const request=new NextRequest('http://localhost/api/appointments',{
-  method:'PATCH',headers:{cookie:`mediroute_session=${token}`,'content-type':'application/json'},body:JSON.stringify({appointmentId,status})
+  method:'PATCH',headers:{cookie:`mediroute_session=${token}`,'content-type':'application/json'},body:JSON.stringify({appointmentId,status,cancellationReason})
  });
  return updateAppointmentStatus(request);
 }
@@ -140,10 +140,13 @@ async function main(){
   await conn.query('DROP TRIGGER IF EXISTS trg_test_reschedule_audit_failure');failureTriggerCreated=false;
 
   const statusRaceId=await appointment(0,9);
-  const statusRace=await Promise.all([requestStatus(users[0],statusRaceId,'CANCELLED'),requestStatus(users[0],statusRaceId,'CANCELLED')]);
+  const statusRace=await Promise.all([requestStatus(users[0],statusRaceId,'CANCELLED','Patient schedule changed'),requestStatus(users[0],statusRaceId,'CANCELLED','Duplicate concurrent cancellation')]);
   assert.deepEqual(statusRace.map(r=>r.status).sort(),[200,409],'only one concurrent status request may close an appointment');
-  const [[statusAfterRace]]=await conn.execute<RowDataPacket[]>('SELECT status FROM appointments WHERE appointment_id=?',[statusRaceId]);
+  const [[statusAfterRace]]=await conn.execute<RowDataPacket[]>('SELECT status,cancellation_reason FROM appointments WHERE appointment_id=?',[statusRaceId]);
   assert.equal(statusAfterRace.status,'CANCELLED','the status race leaves one valid closed state');
+  assert.ok(['Patient schedule changed','Duplicate concurrent cancellation'].includes(String(statusAfterRace.cancellation_reason)),'the successful cancellation stores its reason');
+  const [statusAudit]=await conn.execute<RowDataPacket[]>('SELECT cancellation_reason FROM appointment_audit WHERE appointment_id=? AND new_status=\'CANCELLED\'',[statusRaceId]);
+  assert.equal(statusAudit[0]?.cancellation_reason,statusAfterRace.cancellation_reason,'the audit timeline records the cancellation reason');
 
   const concurrent=await Promise.all([requestMove(users[0],concurrentA,slotIds[8]),requestMove(users[1],concurrentB,slotIds[8])]);
   assert.deepEqual(concurrent.map(r=>r.status).sort(),[200,409],'only one concurrent request may reserve the same target slot');

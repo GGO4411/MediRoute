@@ -23,6 +23,7 @@ export interface ClientAppointmentHistoryEvent {
  changed_at: string;
  old_status?: string | null;
  new_status?: string | null;
+ cancellation_reason?: string | null;
  old_starts_at?: string | null;
  new_starts_at?: string | null;
 }
@@ -36,6 +37,7 @@ export interface ClientAppointment {
  specialty: string;
  starts_at: string;
  status: string;
+ cancellation_reason?: string | null;
  urgency: string;
  history?: ClientAppointmentHistoryEvent[];
 }

@@ -58,11 +58,12 @@ MediRoute is a DBMS Level 3 project prototype. Patients describe symptoms in nat
 
    MySQL runs `db/schema.sql` automatically when its data volume is first initialized. Wait until `docker compose ps` shows MySQL as healthy before seeding. If a MySQL volume already exists and you need to reapply the schema, run `npm run db:init` (the initializer understands the `DELIMITER` blocks used for triggers and the stored procedure).
 
-   For an existing database that predates appointment rescheduling, apply both migrations in order after backing up the database. The first adds reschedule permission/history; the second adds integrity guards. The second preserves existing rows and stops if legacy audit, prescription, appointment, or triage links violate the new constraints:
+   For an existing database that predates appointment rescheduling, apply the migrations in order after backing up the database. The first adds reschedule permission/history; the next adds integrity guards; the latest adds optional cancellation reasons to appointments and their audit history. These migrations preserve existing rows. The integrity migration stops if legacy audit, prescription, appointment, or triage links violate the new constraints:
 
    ```bash
    mysql -h 127.0.0.1 -u root -p mediroute < db/appointment_rescheduling.sql
    mysql -h 127.0.0.1 -u root -p mediroute < db/migrations/20261117_appointment_integrity.sql
+   mysql -h 127.0.0.1 -u root -p mediroute < db/migrations/20261118_appointment_cancellation_reason.sql
    ```
 
 4. Install packages and populate demo records:
@@ -101,6 +102,7 @@ Public registration creates PATIENT accounts only. Doctor and administrator acco
 
 - `db/schema.sql`: users, permissions, role_permissions, specialties, doctors, appointment_slots, triage_sessions, appointments, prescriptions, appointment_audit and appointment_reschedule_audit.
 - `db/migrations/20261117_appointment_integrity.sql`: adds appointment-audit referential integrity and database triggers for slot moves and prescription ownership consistency. The migration checks legacy rows first and preserves them.
+- `db/migrations/20261118_appointment_cancellation_reason.sql`: additively adds optional cancellation reason fields and updates the appointment audit trigger and history view.
 - `db/migrations.sql`: optional one-time `ALTER TABLE` example adding `preferred_language`; do not run it more than once.
 - `db/ddl_examples.sql`: commented `ALTER`/`DROP` statements for demonstrating schema changes and rollback in a disposable database.
 - Primary keys, foreign keys, unique constraints, CHECK constraints, and secondary indexes enforce consistency and support reads.

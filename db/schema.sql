@@ -103,7 +103,7 @@ CREATE TABLE IF NOT EXISTS appointments (
  appointment_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, patient_id BIGINT UNSIGNED NOT NULL,
  doctor_id BIGINT UNSIGNED NOT NULL, slot_id BIGINT UNSIGNED NOT NULL, triage_id BIGINT UNSIGNED NULL,
  status ENUM('BOOKED','CONFIRMED','COMPLETED','CANCELLED','NO_SHOW') NOT NULL DEFAULT 'BOOKED',
- urgency ENUM('ROUTINE','SOON','URGENT','EMERGENCY') NOT NULL DEFAULT 'ROUTINE', reason TEXT,
+ urgency ENUM('ROUTINE','SOON','URGENT','EMERGENCY') NOT NULL DEFAULT 'ROUTINE', reason TEXT, cancellation_reason VARCHAR(500),
  booked_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  CONSTRAINT fk_appointment_patient FOREIGN KEY(patient_id) REFERENCES users(user_id),
  CONSTRAINT fk_appointment_doctor FOREIGN KEY(doctor_id) REFERENCES doctors(doctor_id),
@@ -126,7 +126,7 @@ CREATE TABLE IF NOT EXISTS prescriptions (
 
 CREATE TABLE IF NOT EXISTS appointment_audit (
  audit_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, appointment_id BIGINT UNSIGNED NOT NULL,
- action VARCHAR(30) NOT NULL, old_status VARCHAR(20), new_status VARCHAR(20),
+ action VARCHAR(30) NOT NULL, old_status VARCHAR(20), new_status VARCHAR(20), cancellation_reason VARCHAR(500),
  CONSTRAINT fk_appointment_audit_appointment FOREIGN KEY(appointment_id) REFERENCES appointments(appointment_id),
  changed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX idx_audit_appointment(appointment_id,changed_at)
 ) ENGINE=InnoDB;
@@ -244,8 +244,8 @@ CREATE TRIGGER IF NOT EXISTS trg_appointment_after_update
 AFTER UPDATE ON appointments FOR EACH ROW
 BEGIN
  IF OLD.status<>NEW.status THEN
-  INSERT INTO appointment_audit(appointment_id,action,old_status,new_status)
-   VALUES(NEW.appointment_id,'STATUS_CHANGED',OLD.status,NEW.status);
+  INSERT INTO appointment_audit(appointment_id,action,old_status,new_status,cancellation_reason)
+   VALUES(NEW.appointment_id,'STATUS_CHANGED',OLD.status,NEW.status,NEW.cancellation_reason);
   IF NEW.status='CANCELLED' AND OLD.status<>'CANCELLED' THEN
    UPDATE appointment_slots SET status='AVAILABLE' WHERE slot_id=NEW.slot_id;
   END IF;
@@ -285,7 +285,7 @@ FROM doctors d JOIN users u ON u.user_id=d.user_id JOIN specialties s ON s.speci
 
 CREATE OR REPLACE VIEW v_appointment_details AS
 SELECT a.appointment_id,a.patient_id,p.full_name AS patient_name,a.doctor_id,du.full_name AS doctor_name,
- s.name AS specialty,sl.starts_at,sl.ends_at,a.status,a.urgency,a.booked_at
+ s.name AS specialty,sl.starts_at,sl.ends_at,a.status,a.urgency,a.booked_at,a.cancellation_reason
 FROM appointments a JOIN users p ON p.user_id=a.patient_id
 JOIN doctors d ON d.doctor_id=a.doctor_id JOIN users du ON du.user_id=d.user_id
 JOIN specialties s ON s.specialty_id=d.specialty_id JOIN appointment_slots sl ON sl.slot_id=a.slot_id;

@@ -49,7 +49,7 @@ export async function GET(req:NextRequest){
   const ids=rows.map(r=>Number(r.appointment_id));
   if(ids.length){
    const marks=ids.map(()=>'?').join(',');
-   const [statusEvents]=await db().execute<DBRow[]>(`SELECT appointment_id,action,old_status,new_status,changed_at,NULL AS old_slot_id,NULL AS new_slot_id FROM appointment_audit WHERE appointment_id IN (${marks})`,ids);
+   const [statusEvents]=await db().execute<DBRow[]>(`SELECT appointment_id,action,old_status,new_status,cancellation_reason,changed_at,NULL AS old_slot_id,NULL AS new_slot_id FROM appointment_audit WHERE appointment_id IN (${marks})`,ids);
    const [moveEvents]=await db().execute<DBRow[]>(`SELECT h.appointment_id,'RESCHEDULED' AS action,NULL AS old_status,NULL AS new_status,h.changed_at,h.old_slot_id,h.new_slot_id,old_slot.starts_at AS old_starts_at,new_slot.starts_at AS new_starts_at FROM appointment_reschedule_audit h JOIN appointment_slots old_slot ON old_slot.slot_id=h.old_slot_id JOIN appointment_slots new_slot ON new_slot.slot_id=h.new_slot_id WHERE h.appointment_id IN (${marks})`,ids);
    const history=[...statusEvents,...moveEvents];
    for(const row of rows)row.history=history.filter(event=>Number(event.appointment_id)===Number(row.appointment_id)).sort((a,b)=>new Date(a.changed_at).getTime()-new Date(b.changed_at).getTime());
@@ -87,7 +87,7 @@ export async function POST(req:NextRequest){
 export async function PATCH(req:NextRequest){
  try{
   const user=await getSession(req);if(!user)return NextResponse.json({error:'Authentication required.'},{status:401});
-  const body=await readJsonBody(req);if(!body.ok)return body.response;const p=z.object({appointmentId:z.number().int().positive(),status:z.enum(['CONFIRMED','COMPLETED','CANCELLED','NO_SHOW'])}).safeParse(body.value);
+  const body=await readJsonBody(req);if(!body.ok)return body.response;const p=z.object({appointmentId:z.number().int().positive(),status:z.enum(['CONFIRMED','COMPLETED','CANCELLED','NO_SHOW']),cancellationReason:z.string().trim().max(500).optional()}).safeParse(body.value);
   if(!p.success)return validationError(p.error,'Invalid appointment update.');
   const permission=user.role==='PATIENT'?'APPOINTMENT_CANCEL_OWN':user.role==='DOCTOR'?'APPOINTMENT_COMPLETE_ASSIGNED':user.role==='ADMIN'?'APPOINTMENT_MANAGE_ALL':'';
   if(!permission)return NextResponse.json({error:'Forbidden.'},{status:403});
@@ -110,7 +110,7 @@ export async function PATCH(req:NextRequest){
     if(next==='CONFIRMED'&&current!=='BOOKED'){await conn.rollback();return NextResponse.json({error:'Only booked appointments can be confirmed.'},{status:409});}
    }else{await conn.rollback();return NextResponse.json({error:'Forbidden.'},{status:403});}
    if(next==='CANCELLED'&&!['BOOKED','CONFIRMED'].includes(current)){await conn.rollback();return NextResponse.json({error:'Only an active appointment can be cancelled.'},{status:409});}
-   const [update]=await conn.execute<ResultSetHeader>('UPDATE appointments SET status=? WHERE appointment_id=? AND status=?',[next,p.data.appointmentId,current]);
+   const [update]=await conn.execute<ResultSetHeader>(`UPDATE appointments SET status=?,cancellation_reason=CASE WHEN ?='CANCELLED' THEN ? ELSE cancellation_reason END WHERE appointment_id=? AND status=?`,[next,next,p.data.cancellationReason||null,p.data.appointmentId,current]);
    if(update.affectedRows!==1){await conn.rollback();return NextResponse.json({error:'Appointment status changed concurrently. Refresh and try again.'},{status:409});}
    await conn.commit();return NextResponse.json({message:'Appointment status updated.'});
   }catch(e:unknown){await conn.rollback();if(hasMysqlSqlState(e,'45000')||hasMysqlError(e,'ER_LOCK_DEADLOCK')||hasMysqlError(e,'ER_LOCK_WAIT_TIMEOUT'))return NextResponse.json({error:'This appointment status transition conflicts with its current state. Refresh and try again.'},{status:409});return serverError(e);}
