@@ -46,6 +46,7 @@ jobs:
       - run: npm run test:logout
       - run: npm run test:http-errors
       - run: npm run test:vector-metadata
+      - run: npm run test:environment
       - run: npm run db:init
       - run: npm run db:seed
       - name: Apply additive login rate limit migration

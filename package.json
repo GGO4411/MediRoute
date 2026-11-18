@@ -17,6 +17,7 @@
     "test:logout": "tsx tests/logout.test.ts",
     "test:http-errors": "tsx tests/http-errors.test.ts",
     "test:vector-metadata": "tsx tests/vector-corpus-schema.test.ts",
+    "test:environment": "tsx tests/environment.test.ts",
     "test:db": "tsx scripts/test-db.ts",
     "test:reschedule": "tsx scripts/test-reschedule.ts",
     "test:vectors": "tsx scripts/test-vectors.ts"
